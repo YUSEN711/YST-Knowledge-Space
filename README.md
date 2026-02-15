@@ -28,9 +28,9 @@ A React application built with Vite, TypeScript, and Tailwind CSS (planned).
 -   `npm run lint`: Runs ESLint to check for code quality issues.
 -   `npm run format`: Formats code using Prettier.
 -   `npm run deploy`: Manually deploys the application to GitHub Pages.
-  
+ 
 ## Deployment
-
+  
 ### Automated Deployment (Recommended)
 
 This project is configured with GitHub Actions to automatically deploy to GitHub Pages whenever changes are pushed to the `main` branch.
