@@ -23,8 +23,8 @@ const CATEGORY_MAPPING: Record<TopLevelCategory, Category[]> = {
 const getYoutubeThumbnail = (url: string): string | null => {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
-  return (match && match[2].length === 11) 
-    ? `https://img.youtube.com/vi/${match[2]}/maxresdefault.jpg` 
+  return (match && match[2].length === 11)
+    ? `https://img.youtube.com/vi/${match[2]}/maxresdefault.jpg`
     : null;
 };
 
@@ -34,7 +34,7 @@ function App() {
     try {
       const saved = localStorage.getItem('yst_articles');
       return saved ? JSON.parse(saved) : INITIAL_ARTICLES;
-    } catch (e) {
+    } catch {
       return INITIAL_ARTICLES;
     }
   });
@@ -44,7 +44,7 @@ function App() {
     try {
       const saved = localStorage.getItem('yst_deleted_articles');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -54,7 +54,7 @@ function App() {
     try {
       const saved = localStorage.getItem('yst_users');
       return saved ? JSON.parse(saved) : {};
-    } catch (e) {
+    } catch {
       return {};
     }
   });
@@ -63,7 +63,7 @@ function App() {
   const [isSavedModalOpen, setIsSavedModalOpen] = useState(false);
   const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  
+
   // User State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
@@ -91,7 +91,7 @@ function App() {
   const handleLogin = (username: string) => {
     // Check if user exists in the persisted DB
     let user = usersDb[username];
-    
+
     if (!user) {
       // Register new user if not found
       user = {
@@ -102,7 +102,7 @@ function App() {
       };
       setUsersDb(prev => ({ ...prev, [username]: user }));
     }
-    
+
     setCurrentUser(user);
   };
 
@@ -113,10 +113,10 @@ function App() {
   // Helper to update current user data and sync with DB
   const updateCurrentUser = (updater: (u: User) => User) => {
     if (!currentUser) return;
-    
+
     const updatedUser = updater({ ...currentUser });
     setCurrentUser(updatedUser);
-    
+
     // Update main DB
     setUsersDb(prev => ({ ...prev, [updatedUser.name]: updatedUser }));
   };
@@ -142,15 +142,15 @@ function App() {
   // Mark article as read
   const markAsRead = (articleId: string) => {
     if (!currentUser) return;
-    
+
     // Only update if not already read to avoid unnecessary state updates
     if (!currentUser.readArticleIds.includes(articleId)) {
-        updateCurrentUser(user => {
-            const read = new Set(user.readArticleIds);
-            read.add(articleId);
-            user.readArticleIds = Array.from(read);
-            return user;
-        });
+      updateCurrentUser(user => {
+        const read = new Set(user.readArticleIds);
+        read.add(articleId);
+        user.readArticleIds = Array.from(read);
+        return user;
+      });
     }
   };
 
@@ -229,13 +229,13 @@ function App() {
   // 1. First, filter articles based on the Top Level Directory + Sub Category Selection
   const visibleArticles = useMemo(() => {
     const allowedSubCategories = CATEGORY_MAPPING[currentTopLevel];
-    
+
     return articles.filter(article => {
       // Must belong to one of the allowed categories for this Top Level
       const isAllowedInTopLevel = allowedSubCategories.includes(article.category);
       // Must match the specific sub-category filter (if not ALL)
       const matchesSubCategory = currentSubCategory === 'ALL' || article.category === currentSubCategory;
-      
+
       return isAllowedInTopLevel && matchesSubCategory;
     });
   }, [articles, currentTopLevel, currentSubCategory]);
@@ -291,8 +291,8 @@ function App() {
 
   return (
     <div className="min-h-screen pb-20 bg-[#f5f5f7]">
-      <Header 
-        onOpenSubmit={() => setIsModalOpen(true)} 
+      <Header
+        onOpenSubmit={() => setIsModalOpen(true)}
         onOpenSaved={() => setIsSavedModalOpen(true)}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onOpenTrash={() => setIsTrashModalOpen(true)}
@@ -303,12 +303,12 @@ function App() {
       />
 
       {selectedArticle ? (
-        <ArticleDetail 
-          article={selectedArticle} 
+        <ArticleDetail
+          article={selectedArticle}
           onBack={() => {
             window.scrollTo(0, 0);
             setSelectedArticle(null);
-          }} 
+          }}
           isSaved={isArticleSaved(selectedArticle.id)}
           onToggleSave={() => toggleSaveArticle(selectedArticle.id)}
           onDelete={() => handleSoftDeleteArticle(selectedArticle.id)}
@@ -316,17 +316,16 @@ function App() {
         />
       ) : (
         <main className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 pt-8 space-y-16">
-          
+
           {/* Sub-Category Filter Bar */}
           <div className="sticky top-20 z-40 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto no-scrollbar pt-6 pb-4 bg-[#f5f5f7]/95 backdrop-blur-sm transition-all">
             <div className="flex gap-3 min-w-max">
               <button
                 onClick={() => setCurrentSubCategory('ALL')}
-                className={`px-4 py-2 text-sm md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${
-                  currentSubCategory === 'ALL' 
-                    ? 'bg-black text-white border-black shadow-md' 
-                    : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
-                }`}
+                className={`px-4 py-2 text-sm md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === 'ALL'
+                  ? 'bg-black text-white border-black shadow-md'
+                  : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
+                  }`}
               >
                 全部
               </button>
@@ -334,11 +333,10 @@ function App() {
                 <button
                   key={cat}
                   onClick={() => setCurrentSubCategory(cat)}
-                  className={`px-4 py-2 text-sm md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${
-                    currentSubCategory === cat 
-                      ? 'bg-black text-white border-black shadow-md' 
-                      : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
-                  }`}
+                  className={`px-4 py-2 text-sm md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === cat
+                    ? 'bg-black text-white border-black shadow-md'
+                    : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
+                    }`}
                 >
                   {cat}
                 </button>
@@ -349,9 +347,9 @@ function App() {
           {/* Featured Hero Section */}
           {heroArticle && (
             <section className="animate-[fadeIn_0.5s_ease-out]">
-              <ArticleCard 
-                article={heroArticle} 
-                featured 
+              <ArticleCard
+                article={heroArticle}
+                featured
                 onClick={() => handleArticleClick(heroArticle)}
                 isRead={isArticleRead(heroArticle.id)}
               />
@@ -360,20 +358,20 @@ function App() {
 
           {/* Content Sections Grouped by Type */}
           <div className="space-y-16 sm:space-y-24 animate-[fadeIn_0.7s_ease-out]">
-            
+
             {/* 1. YouTube Section */}
             {groupedContent.YOUTUBE.length > 0 && (
-              <Section 
-                title="影片" 
+              <Section
+                title="影片"
                 icon={<Youtube size={28} className="text-red-600" />}
                 description="深度解析與趨勢觀察"
               >
                 {/* Mobile: grid-cols-1 (Large images). Tablet+: grid-cols-2 or 3 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
                   {groupedContent.YOUTUBE.map(article => (
-                    <ArticleCard 
-                      key={article.id} 
-                      article={article} 
+                    <ArticleCard
+                      key={article.id}
+                      article={article}
                       onClick={() => handleArticleClick(article)}
                       isRead={isArticleRead(article.id)}
                     />
@@ -384,16 +382,16 @@ function App() {
 
             {/* 2. Article Section */}
             {groupedContent.ARTICLE.length > 0 && (
-              <Section 
-                title="深度文章" 
+              <Section
+                title="深度文章"
                 icon={<FileText size={28} className="text-blue-600" />}
                 description="專業見解與知識分享"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
                   {groupedContent.ARTICLE.map(article => (
-                    <ArticleCard 
-                      key={article.id} 
-                      article={article} 
+                    <ArticleCard
+                      key={article.id}
+                      article={article}
                       onClick={() => handleArticleClick(article)}
                       isRead={isArticleRead(article.id)}
                     />
@@ -402,18 +400,18 @@ function App() {
               </Section>
             )}
 
-             {/* 3. Book Section */}
-             {groupedContent.BOOK.length > 0 && (
-              <Section 
-                title="閱讀書籍" 
+            {/* 3. Book Section */}
+            {groupedContent.BOOK.length > 0 && (
+              <Section
+                title="閱讀書籍"
                 icon={<BookOpen size={28} className="text-orange-600" />}
                 description="值得收藏的經典讀物"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
                   {groupedContent.BOOK.map(article => (
-                    <ArticleCard 
-                      key={article.id} 
-                      article={article} 
+                    <ArticleCard
+                      key={article.id}
+                      article={article}
                       onClick={() => handleArticleClick(article)}
                       isRead={isArticleRead(article.id)}
                     />
@@ -426,7 +424,7 @@ function App() {
             {visibleArticles.length === 0 && (
               <div className="text-center py-24 flex flex-col items-center">
                 <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-6">
-                   <ArrowLeft size={32} className="text-gray-400" />
+                  <ArrowLeft size={32} className="text-gray-400" />
                 </div>
                 <p className="text-gray-500 font-medium text-lg">此分類暫無內容</p>
                 <Button variant="ghost" size="lg" onClick={() => setCurrentSubCategory('ALL')} className="mt-6">
@@ -439,19 +437,19 @@ function App() {
         </main>
       )}
 
-      <SubmitModal 
-        isOpen={isModalOpen} 
+      <SubmitModal
+        isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleAddArticle}
       />
 
-      <SavedModal 
+      <SavedModal
         isOpen={isSavedModalOpen}
         onClose={() => setIsSavedModalOpen(false)}
         savedArticles={savedArticles}
         onArticleClick={(article) => {
           setSelectedArticle(article);
-          if(currentUser) markAsRead(article.id);
+          if (currentUser) markAsRead(article.id);
         }}
       />
 
@@ -463,17 +461,17 @@ function App() {
         onPermanentDelete={handlePermanentDelete}
       />
 
-      <AuthModal 
+      <AuthModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
         onLogin={handleLogin}
       />
-      
+
       {!selectedArticle && (
         <footer className="mt-32 border-t border-gray-200 bg-white py-16">
-           <div className="max-w-7xl mx-auto px-4 text-center text-gray-400 text-base">
-              <p>&copy; 2026 YST Knowledge Space. All rights reserved.</p>
-           </div>
+          <div className="max-w-7xl mx-auto px-4 text-center text-gray-400 text-base">
+            <p>&copy; 2026 YST Knowledge Space. All rights reserved.</p>
+          </div>
         </footer>
       )}
     </div>

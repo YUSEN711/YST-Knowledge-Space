@@ -1,10 +1,20 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Category, AIAnalysisResult } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const analyzeArticleContent = async (title: string, description: string): Promise<AIAnalysisResult> => {
+  const apiKey = process.env.API_KEY;
+
+  if (!apiKey) {
+    console.warn("No API Key found for Gemini. Returning fallback.");
+    return {
+      summary: description.substring(0, 100) + "...",
+      category: Category.TECH,
+      tags: ["General"]
+    };
+  }
+
   try {
+    const ai = new GoogleGenAI({ apiKey });
     const prompt = `
       You are an expert content curator for a high-end tech and knowledge website.
       Analyze the following article title and user description.
@@ -17,7 +27,7 @@ export const analyzeArticleContent = async (title: string, description: string):
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash-exp",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -25,8 +35,8 @@ export const analyzeArticleContent = async (title: string, description: string):
           type: Type.OBJECT,
           properties: {
             summary: { type: Type.STRING },
-            category: { 
-              type: Type.STRING, 
+            category: {
+              type: Type.STRING,
               enum: [
                 Category.TECH,
                 Category.DESIGN,

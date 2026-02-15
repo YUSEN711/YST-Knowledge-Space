@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Bookmark, ArrowLeft } from 'lucide-react';
+import { X, Bookmark } from 'lucide-react';
 import { ArticleCard } from './ArticleCard';
 import { Article } from '../types';
 import { Button } from './Button';
@@ -16,12 +16,12 @@ export const SavedModal: React.FC<SavedModalProps> = ({ isOpen, onClose, savedAr
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-      <div 
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" 
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
       <div className="relative bg-[#f5f5f7] rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden animate-[fadeIn_0.3s_ease-out] h-[85vh] flex flex-col">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-white/80 backdrop-blur-md border-b border-gray-200 z-10">
           <div className="flex items-center gap-2 text-gray-900">
@@ -33,7 +33,7 @@ export const SavedModal: React.FC<SavedModalProps> = ({ isOpen, onClose, savedAr
               {savedArticles.length}
             </span>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"
           >
@@ -46,13 +46,13 @@ export const SavedModal: React.FC<SavedModalProps> = ({ isOpen, onClose, savedAr
           {savedArticles.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {savedArticles.map((article) => (
-                <ArticleCard 
-                  key={article.id} 
-                  article={article} 
+                <ArticleCard
+                  key={article.id}
+                  article={article}
                   onClick={() => {
                     onArticleClick(article);
                     onClose();
-                  }} 
+                  }}
                 />
               ))}
             </div>
