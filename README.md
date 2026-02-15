@@ -19,7 +19,7 @@ A React application built with Vite, TypeScript, and Tailwind CSS (planned).
     ```bash
     npm run dev
     ```
-
+    
 ## Scripts
 
 -   `npm run dev`: Starts the development server.
@@ -28,7 +28,7 @@ A React application built with Vite, TypeScript, and Tailwind CSS (planned).
 -   `npm run lint`: Runs ESLint to check for code quality issues.
 -   `npm run format`: Formats code using Prettier.
 -   `npm run deploy`: Manually deploys the application to GitHub Pages.
-
+  
 ## Deployment
 
 ### Automated Deployment (Recommended)
