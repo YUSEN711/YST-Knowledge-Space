@@ -7,9 +7,12 @@ export const analyzeArticleContent = async (title: string, description: string, 
   if (!apiKey) {
     console.warn("No API Key found for Gemini. Returning fallback.");
     return {
-      summary: description.substring(0, 100) + "...",
+      summary: description ? description.substring(0, 100) + "..." : "無法生成摘要 (未設定 API Key)",
       category: Category.TECH,
-      tags: ["General"]
+      tags: ["General"],
+      content: "無法生成內容 (未設定 API Key)",
+      keyPoints: "無法生成重點 (未設定 API Key)",
+      conclusion: "無法生成結語 (未設定 API Key)"
     };
   }
 
