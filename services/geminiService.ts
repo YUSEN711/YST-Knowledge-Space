@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Category, AIAnalysisResult } from '../types';
 
-export const analyzeArticleContent = async (title: string, description: string, resourceType: string = 'ARTICLE', url: string = ''): Promise<AIAnalysisResult> => {
+export const analyzeArticleContent = async (title: string, description: string, resourceType: string = 'ARTICLE', url: string = '', pageContent: string = ''): Promise<AIAnalysisResult> => {
   const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
@@ -34,7 +34,7 @@ export const analyzeArticleContent = async (title: string, description: string, 
 
     const prompt = `
       You are an expert content curator for a high-end tech and knowledge website.
-      Analyze the following title, user description (if provided), and URL. Resource Type: ${resourceType}
+      Analyze the following title, user description (if provided), URL, and page content. Resource Type: ${resourceType}
       
       1. Create a concise, professional summary (max 2 sentences, Traditional Chinese).
       2. Categorize it into one of the following exact categories: '科技創新', '設計美學', '商業趨勢', '科學探索', '生活風格'.
@@ -45,6 +45,9 @@ export const analyzeArticleContent = async (title: string, description: string, 
       Title: ${title}
       URL: ${url}
       Description: ${description || 'No description provided, please generate based on title and URL'}
+      
+      Context: The following is the text content extracted from the URL (use this as the PRIMARY source for analysis):
+      ${pageContent ? pageContent.substring(0, 15000) : "No page content available, rely on Title and Description."}
     `;
 
     const response = await ai.models.generateContent({

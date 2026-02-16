@@ -121,6 +121,33 @@ const fetchTitleFromUrl = async (url: string, type: ResourceType): Promise<strin
   }
 };
 
+// Fetch Page Content via Proxy (start)
+const fetchPageContent = async (url: string): Promise<string> => {
+  try {
+    const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    const data = await response.json();
+    if (!data.contents) return "";
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(data.contents, 'text/html');
+
+    // Remove script and style elements
+    const scripts = doc.querySelectorAll('script, style, noscript, iframe, svg');
+    scripts.forEach(script => script.remove());
+
+    // Get text content
+    let text = doc.body.innerText || "";
+
+    // Simple cleanup: remove excessive whitespace
+    text = text.replace(/\s+/g, ' ').trim();
+
+    return text;
+  } catch (error) {
+    console.error('Failed to fetch page content:', error);
+    return "";
+  }
+};
+
 export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit, initialData }) => {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -131,8 +158,11 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
   const [category, setCategory] = useState<Category>(Category.TECH);
   const [resourceType, setResourceType] = useState<ResourceType>('ARTICLE');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzingStatus, setAnalyzingStatus] = useState<string>(''); // New status state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingTitle, setIsFetchingTitle] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [isFetchingImage, setIsFetchingImage] = useState(false);
 
   // Auto-fetch title when URL changes (debounced)
   useEffect(() => {
@@ -148,7 +178,33 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
     }, 1000); // 1 second debounce
 
     return () => clearTimeout(timer);
-  }, [url, resourceType]); // Don't include title in deps to avoid prevent user edits
+  }, [url, resourceType, title]); // Added title to dependencies to prevent re-fetching if title is manually set
+
+  // Auto-fetch Image when URL (for Article/Video) or Title (for Book) changes
+  useEffect(() => {
+    if (imageUrl) return; // Don't fetch if image already exists/is set (prevents overwriting manual edits)
+    if (resourceType === 'BOOK' && !title) return;
+    if (resourceType !== 'BOOK' && !url) return;
+
+    const timer = setTimeout(async () => {
+      setIsFetchingImage(true);
+      let fetchedImage: string | null = null;
+
+      if (resourceType === 'BOOK' && title) {
+        fetchedImage = await fetchBookCover(title);
+      } else if (resourceType !== 'BOOK' && url) {
+        fetchedImage = await fetchOgImage(url);
+      }
+
+      if (fetchedImage) {
+        setImageUrl(fetchedImage);
+      }
+      setIsFetchingImage(false);
+    }, 1500); // 1.5 second debounce to wait for user to finish typing
+
+    return () => clearTimeout(timer);
+  }, [url, title, resourceType, imageUrl]);
+
 
   // Populate form with initialData when modal opens
   useEffect(() => {
@@ -159,6 +215,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         setDescription(initialData.summary);
         setCategory(initialData.category);
         setResourceType(initialData.type);
+        setImageUrl(initialData.imageUrl || ''); // Set initial image
         setContent(initialData.content || '');
         setKeyPoints(initialData.keyPoints || '');
         setConclusion(initialData.conclusion || '');
@@ -167,6 +224,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         setTitle('');
         setUrl('');
         setDescription('');
+        setImageUrl('');
         setCategory(Category.TECH);
         setResourceType('ARTICLE');
         setContent('');
@@ -177,11 +235,21 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
   }, [isOpen, initialData]);
 
   const handleAnalyze = async () => {
-    if (!title && !description) return;
+    if (!title && !description && !url) return;
     setIsAnalyzing(true);
+    setAnalyzingStatus('正在讀取網頁內容...');
+
     try {
-      // Pass the user input to Gemini to clean up
-      const result = await analyzeArticleContent(title, description, resourceType, url);
+      // 1. Fetch Page Content first
+      let pageContent = "";
+      if (url && resourceType === 'ARTICLE') {
+        pageContent = await fetchPageContent(url);
+      }
+
+      setAnalyzingStatus('AI 正在分析與生成內容...');
+
+      // 2. Pass content to Gemini
+      const result = await analyzeArticleContent(title, description, resourceType, url, pageContent);
 
       // Update fields with AI suggestions
       setDescription(result.summary);
@@ -194,6 +262,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       alert('AI 分析暫時無法使用，請手動輸入');
     } finally {
       setIsAnalyzing(false);
+      setAnalyzingStatus('');
     }
   };
 
@@ -212,7 +281,18 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       if (!description || !content || !keyPoints || !conclusion) {
         setIsAnalyzing(true);
         try {
-          const result = await analyzeArticleContent(title, description || title, resourceType, url);
+          // Fetch content for auto-fill if needed
+          let pageContent = "";
+          if (url && resourceType === 'ARTICLE') {
+            // We can try to fetch it, but to save time/bandwidth maybe we skip or rely on handleAnalyze? 
+            // Ideally the user uses the button. But if they click submit directly...
+            // Let's do a quick fetch
+            try {
+              pageContent = await fetchPageContent(url);
+            } catch (e) { }
+          }
+
+          const result = await analyzeArticleContent(title, description || title, resourceType, url, pageContent);
           if (!description) finalDescription = result.summary;
           if (!content) finalContent = result.content || '';
           if (!keyPoints) finalKeyPoints = result.keyPoints || '';
@@ -226,13 +306,11 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         }
       }
 
-      // 2. Fetch Image based on Type
-      let fetchedImage: string | null = null;
-      if (resourceType === 'BOOK' && title) {
-        fetchedImage = await fetchBookCover(title);
-      } else if (resourceType === 'ARTICLE' && url) {
-        fetchedImage = await fetchOgImage(url);
-      }
+      // 2. Use the state imageUrl (fetched or manually entered)
+      // If it's still empty, try one last fetch? No, the user saw the preview. 
+      // If they explicitly cleared it, it sends undefined/empty.
+      // But if they just pasted URL and hit enter fast, debounce might not have fired.
+      // Let's rely on the state. If they want an image, they'll see the preview.
 
       onSubmit({
         title,
@@ -243,7 +321,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         content: finalContent || undefined,
         keyPoints: finalKeyPoints || undefined,
         conclusion: finalConclusion || undefined,
-        imageUrl: fetchedImage || undefined
+        imageUrl: imageUrl || undefined
       });
 
       // Reset form
@@ -253,6 +331,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       setContent('');
       setKeyPoints('');
       setConclusion('');
+      setImageUrl('');
       setCategory(Category.TECH);
       setResourceType('ARTICLE');
       setIsSubmitting(false);
@@ -335,20 +414,48 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-              <Type size={14} />
-              標題
-              {isFetchingTitle && <Loader2 size={14} className="animate-spin text-blue-500" />}
-            </label>
-            <input
-              required
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={isFetchingTitle ? "正在自動抓取標題..." : "請輸入標題"}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm font-medium"
-            />
+          <div className="flex gap-4 items-start">
+            <div className="flex-1 space-y-1.5">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <Type size={14} />
+                標題
+                {isFetchingTitle && <Loader2 size={14} className="animate-spin text-blue-500" />}
+              </label>
+              <input
+                required
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={isFetchingTitle ? "正在自動抓取標題..." : "請輸入標題"}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm font-medium"
+              />
+            </div>
+          </div>
+
+          {/* Image URL Input & Preview */}
+          <div className="flex gap-4 items-start">
+            <div className="flex-1 space-y-1.5">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <div className="flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                  封面圖片連結
+                </div>
+                {isFetchingImage && <Loader2 size={14} className="animate-spin text-blue-500" />}
+              </label>
+              <input
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://... (自動抓取或手動輸入)"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm"
+              />
+            </div>
+            {imageUrl && (
+              <div className="w-20 h-20 shrink-0 rounded-xl border border-gray-100 overflow-hidden bg-gray-50 mt-6 relative group">
+                <img src={imageUrl} alt="Cover Preview" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors" />
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5 relative">
@@ -379,7 +486,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
               <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] rounded-xl flex items-center justify-center z-10">
                 <div className="flex flex-col items-center gap-2 text-purple-600">
                   <Sparkles className="animate-pulse" size={24} />
-                  <span className="text-xs font-semibold">Gemini 思考中...</span>
+                  <span className="text-xs font-semibold">{analyzingStatus || "Gemini 思考中..."}</span>
                 </div>
               </div>
             )}
