@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Bookmark, Menu, X, LogIn, Trash2, LogOut } from 'lucide-react';
 import { Button } from './Button';
 import { User } from '../types';
 
-export type TopLevelCategory = 'LATEST' | 'TECH' | 'DESIGN' | 'BUSINESS';
+export type TopLevelCategory = 'LATEST' | 'TECH' | 'DESIGN' | 'BUSINESS' | 'BOOKS';
 
 interface HeaderProps {
   onOpenSubmit: () => void;
@@ -34,12 +34,28 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'TECH', label: '科技' },
     { id: 'DESIGN', label: '生活' },
     { id: 'BUSINESS', label: '商業' },
+    { id: 'BOOKS', label: '閱讀書籍' },
   ];
 
   const handleMobileNavClick = (id: TopLevelCategory) => {
     onTopLevelChange(id);
     setIsMobileMenuOpen(false);
   };
+
+  // State for animated slider
+  const [sliderStyle, setSliderStyle] = useState({ width: 0, left: 0 });
+  const navRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Update slider position when active tab changes
+  useEffect(() => {
+    const activeButton = navRefs.current[currentTopLevel];
+    if (activeButton) {
+      setSliderStyle({
+        width: activeButton.offsetWidth,
+        left: activeButton.offsetLeft
+      });
+    }
+  }, [currentTopLevel]);
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-gray-100 transition-all duration-300">
@@ -57,13 +73,25 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Desktop Navigation (Hidden on Mobile) */}
-          <nav className="hidden md:flex gap-2 sm:gap-4 bg-gray-100/50 p-1.5 rounded-full overflow-x-auto no-scrollbar max-w-[200px] sm:max-w-none">
+          <nav className="hidden md:flex gap-2 sm:gap-4 bg-gray-100/50 p-1.5 rounded-full overflow-x-auto no-scrollbar max-w-[200px] sm:max-w-none relative">
+            {/* Animated Background Slider */}
+            <div
+              className="absolute top-1.5 bg-white rounded-full shadow-sm transition-all duration-300 ease-out"
+              style={{
+                width: `${sliderStyle.width}px`,
+                height: 'calc(100% - 12px)',
+                transform: `translateX(${sliderStyle.left}px)`
+              }}
+            />
             {navItems.map((item) => (
               <button
                 key={item.id}
+                ref={(el) => {
+                  navRefs.current[item.id] = el;
+                }}
                 onClick={() => onTopLevelChange(item.id)}
-                className={`px-5 py-2 rounded-full text-base font-medium transition-all duration-200 whitespace-nowrap ${currentTopLevel === item.id
-                    ? 'bg-white text-black shadow-sm'
+                className={`px-5 py-2 rounded-full text-base font-medium transition-all duration-200 whitespace-nowrap relative z-10 ${currentTopLevel === item.id
+                    ? 'text-black'
                     : 'text-gray-500 hover:text-gray-900'
                   }`}
               >
@@ -196,8 +224,8 @@ export const Header: React.FC<HeaderProps> = ({
                 key={item.id}
                 onClick={() => handleMobileNavClick(item.id)}
                 className={`w-full text-left px-4 py-4 rounded-2xl text-lg font-medium transition-all flex items-center justify-between group ${currentTopLevel === item.id
-                    ? 'bg-gray-100 text-black'
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-gray-100 text-black'
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                   }`}
               >
                 {item.label}

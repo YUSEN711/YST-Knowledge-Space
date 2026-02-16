@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Sparkles, Link as LinkIcon, Type, FileText, Youtube, BookOpen } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Sparkles, Link as LinkIcon, Type, FileText, Youtube, BookOpen, Loader2 } from 'lucide-react';
 import { Button } from './Button';
 import { Category, ResourceType } from '../types';
 import { analyzeArticleContent } from '../services/geminiService';
@@ -7,17 +7,80 @@ import { analyzeArticleContent } from '../services/geminiService';
 interface SubmitModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { title: string; summary: string; category: Category; url: string; type: ResourceType }) => void;
+  onSubmit: (data: {
+    title: string;
+    summary: string;
+    category: Category;
+    url: string;
+    type: ResourceType;
+    content?: string;
+    keyPoints?: string;
+    conclusion?: string;
+  }) => void;
 }
+
+// Helper to extract YouTube video ID
+const getYouTubeVideoId = (url: string): string | null => {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+};
+
+// Fetch title from URL
+const fetchTitleFromUrl = async (url: string, type: ResourceType): Promise<string | null> => {
+  try {
+    if (type === 'YOUTUBE') {
+      const videoId = getYouTubeVideoId(url);
+      if (!videoId) return null;
+
+      // Use YouTube oEmbed API
+      const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      return data.title || null;
+    } else {
+      // For regular URLs, try to fetch the title from HTML
+      // Note: This may fail due to CORS. A proper implementation would need a backend proxy
+      const response = await fetch(url, { mode: 'cors' });
+      const html = await response.text();
+      const match = html.match(/<title>([^<]*)<\/title>/i);
+      return match ? match[1].trim() : null;
+    }
+  } catch (error) {
+    console.error('Failed to fetch title:', error);
+    return null;
+  }
+};
 
 export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit }) => {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [content, setContent] = useState('');
+  const [keyPoints, setKeyPoints] = useState('');
+  const [conclusion, setConclusion] = useState('');
   const [category, setCategory] = useState<Category>(Category.TECH);
   const [resourceType, setResourceType] = useState<ResourceType>('ARTICLE');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingTitle, setIsFetchingTitle] = useState(false);
+
+  // Auto-fetch title when URL changes (debounced)
+  useEffect(() => {
+    if (!url || title) return; // Don't fetch if title already exists
+
+    const timer = setTimeout(async () => {
+      setIsFetchingTitle(true);
+      const fetchedTitle = await fetchTitleFromUrl(url, resourceType);
+      if (fetchedTitle && !title) { // Only set if title is still empty
+        setTitle(fetchedTitle);
+      }
+      setIsFetchingTitle(false);
+    }, 1000); // 1 second debounce
+
+    return () => clearTimeout(timer);
+  }, [url, resourceType]); // Don't include title in deps to avoid prevent user edits
 
   const handleAnalyze = async () => {
     if (!title && !description) return;
@@ -25,7 +88,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
     try {
       // Pass the user input to Gemini to clean up
       const result = await analyzeArticleContent(title, description);
-      
+
       // Update fields with AI suggestions
       setDescription(result.summary);
       setCategory(result.category);
@@ -40,14 +103,26 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     // Simulate network delay
     setTimeout(() => {
-      onSubmit({ title, summary: description, category, url, type: resourceType });
+      onSubmit({
+        title,
+        summary: description,
+        category,
+        url,
+        type: resourceType,
+        content: content || undefined,
+        keyPoints: keyPoints || undefined,
+        conclusion: conclusion || undefined
+      });
       // Reset form
       setUrl('');
       setTitle('');
       setDescription('');
+      setContent('');
+      setKeyPoints('');
+      setConclusion('');
       setCategory(Category.TECH);
       setResourceType('ARTICLE');
       setIsSubmitting(false);
@@ -59,16 +134,16 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-      <div 
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" 
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-[fadeIn_0.3s_ease-out] max-h-[90vh] overflow-y-auto no-scrollbar">
-        
+      <div className="relative bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-[fadeIn_0.3s_ease-out] max-h-[90vh] overflow-y-auto no-scrollbar">
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
           <h3 className="text-xl font-semibold text-gray-900">分享新知</h3>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"
           >
@@ -78,16 +153,15 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          
+
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 block">資源類型</label>
             <div className="flex p-1 bg-gray-100 rounded-xl">
               <button
                 type="button"
                 onClick={() => setResourceType('ARTICLE')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
-                  resourceType === 'ARTICLE' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-900'
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${resourceType === 'ARTICLE' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}
               >
                 <FileText size={16} />
                 文章
@@ -95,9 +169,8 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
               <button
                 type="button"
                 onClick={() => setResourceType('YOUTUBE')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
-                  resourceType === 'YOUTUBE' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-900'
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${resourceType === 'YOUTUBE' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}
               >
                 <Youtube size={16} />
                 影片
@@ -105,9 +178,8 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
               <button
                 type="button"
                 onClick={() => setResourceType('BOOK')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
-                  resourceType === 'BOOK' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-900'
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${resourceType === 'BOOK' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}
               >
                 <BookOpen size={16} />
                 書籍
@@ -134,13 +206,14 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
               <Type size={14} />
               標題
+              {isFetchingTitle && <Loader2 size={14} className="animate-spin text-blue-500" />}
             </label>
             <input
               required
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="請輸入標題"
+              placeholder={isFetchingTitle ? "正在自動抓取標題..." : "請輸入標題"}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm font-medium"
             />
           </div>
@@ -179,6 +252,40 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
             )}
           </div>
 
+          {/* New Fields */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700 block">文章內容（選填）</label>
+            <textarea
+              rows={10}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="詳細記錄文章的核心內容、重點段落或引言..."
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm resize-none"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700 block">關鍵觀點與分析（選填）</label>
+            <textarea
+              rows={6}
+              value={keyPoints}
+              onChange={(e) => setKeyPoints(e.target.value)}
+              placeholder="列舉文章的關鍵觀點、深入分析或你的思考..."
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm resize-none"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700 block">結語（選填）</label>
+            <textarea
+              rows={4}
+              value={conclusion}
+              onChange={(e) => setConclusion(e.target.value)}
+              placeholder="總結這篇內容的啟發、行動建議或個人反思..."
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm resize-none"
+            />
+          </div>
+
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 block">分類</label>
             <div className="grid grid-cols-3 gap-2">
@@ -187,11 +294,10 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
                   key={cat}
                   type="button"
                   onClick={() => setCategory(cat)}
-                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-                    category === cat
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${category === cat
                       ? 'bg-black text-white shadow-md transform scale-[1.02]'
                       : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                  }`}
+                    }`}
                 >
                   {cat}
                 </button>
@@ -200,9 +306,9 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
           </div>
 
           <div className="pt-4">
-            <Button 
-              type="submit" 
-              variant="primary" 
+            <Button
+              type="submit"
+              variant="primary"
               className="w-full"
               isLoading={isSubmitting}
             >

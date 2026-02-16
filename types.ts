@@ -20,6 +20,9 @@ export interface Article {
   date: string;
   author: string;
   isFeatured?: boolean;
+  content?: string;
+  keyPoints?: string;
+  conclusion?: string;
 }
 
 export interface AIAnalysisResult {

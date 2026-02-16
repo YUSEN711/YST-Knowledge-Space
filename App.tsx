@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, Youtube, FileText, BookOpen } from 'lucide-react';
+import { ArrowLeft, Youtube, FileText, BookOpen, LayoutGrid } from 'lucide-react';
 import { Header, TopLevelCategory } from './components/Header';
 import { ArticleCard } from './components/ArticleCard';
 import { SubmitModal } from './components/SubmitModal';
@@ -16,7 +16,8 @@ const CATEGORY_MAPPING: Record<TopLevelCategory, Category[]> = {
   LATEST: Object.values(Category), // Shows everything
   TECH: [Category.TECH, Category.SCIENCE],
   DESIGN: [Category.DESIGN, Category.LIFESTYLE],
-  BUSINESS: [Category.BUSINESS]
+  BUSINESS: [Category.BUSINESS],
+  BOOKS: Object.values(Category) // Books can be from any category
 };
 
 // Helper to extract YouTube Thumbnail
@@ -231,6 +232,15 @@ function App() {
     const allowedSubCategories = CATEGORY_MAPPING[currentTopLevel];
 
     return articles.filter(article => {
+      // Special handling for BOOKS tab - filter by ResourceType
+      if (currentTopLevel === 'BOOKS') {
+        if (article.type !== 'BOOK') return false;
+        // Apply sub-category filter if not ALL
+        if (currentSubCategory === 'ALL') return true;
+        return article.category === currentSubCategory;
+      }
+
+      // Regular category-based filtering for other tabs
       // Must belong to one of the allowed categories for this Top Level
       const isAllowedInTopLevel = allowedSubCategories.includes(article.category);
       // Must match the specific sub-category filter (if not ALL)
@@ -264,7 +274,16 @@ function App() {
   const isArticleSaved = (id: string) => currentUser?.savedArticleIds.includes(id) || false;
   const isArticleRead = (id: string) => currentUser?.readArticleIds.includes(id) || false;
 
-  const handleAddArticle = (data: { title: string; summary: string; category: Category; url: string; type: ResourceType }) => {
+  const handleAddArticle = (data: {
+    title: string;
+    summary: string;
+    category: Category;
+    url: string;
+    type: ResourceType;
+    content?: string;
+    keyPoints?: string;
+    conclusion?: string;
+  }) => {
     // Try to get YouTube thumbnail if it's a video
     let imageUrl = `https://picsum.photos/800/600?random=${Date.now()}`;
     if (data.type === 'YOUTUBE') {
@@ -281,7 +300,10 @@ function App() {
       imageUrl: imageUrl,
       date: new Date().toISOString().split('T')[0],
       author: currentUser ? currentUser.name : 'Guest User',
-      type: data.type
+      type: data.type,
+      content: data.content,
+      keyPoints: data.keyPoints,
+      conclusion: data.conclusion
     };
     setArticles(prev => [newArticle, ...prev]);
   };
@@ -381,84 +403,35 @@ function App() {
               </section>
             )}
 
-            {/* Content Sections Grouped by Type */}
-            <div className="space-y-16 sm:space-y-24 animate-[fadeIn_0.7s_ease-out]">
-
-              {/* 1. YouTube Section */}
-              {groupedContent.YOUTUBE.length > 0 && (
-                <Section
-                  title="影片"
-                  icon={<Youtube size={28} className="text-red-600" />}
-                  description="深度解析與趨勢觀察"
-                >
-                  {/* Mobile: grid-cols-1 (Large images). Tablet+: grid-cols-2 or 3 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
-                    {groupedContent.YOUTUBE.map(article => (
-                      <ArticleCard
-                        key={article.id}
-                        article={article}
-                        onClick={() => handleArticleClick(article)}
-                        isRead={isArticleRead(article.id)}
-                      />
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              {/* 2. Article Section */}
-              {groupedContent.ARTICLE.length > 0 && (
-                <Section
-                  title="深度文章"
-                  icon={<FileText size={28} className="text-blue-600" />}
-                  description="專業見解與知識分享"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
-                    {groupedContent.ARTICLE.map(article => (
-                      <ArticleCard
-                        key={article.id}
-                        article={article}
-                        onClick={() => handleArticleClick(article)}
-                        isRead={isArticleRead(article.id)}
-                      />
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              {/* 3. Book Section */}
-              {groupedContent.BOOK.length > 0 && (
-                <Section
-                  title="閱讀書籍"
-                  icon={<BookOpen size={28} className="text-orange-600" />}
-                  description="值得收藏的經典讀物"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
-                    {groupedContent.BOOK.map(article => (
-                      <ArticleCard
-                        key={article.id}
-                        article={article}
-                        onClick={() => handleArticleClick(article)}
-                        isRead={isArticleRead(article.id)}
-                      />
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              {/* Empty State */}
-              {visibleArticles.length === 0 && (
-                <div className="text-center py-24 flex flex-col items-center">
-                  <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-6">
-                    <ArrowLeft size={32} className="text-gray-400" />
-                  </div>
-                  <p className="text-gray-500 font-medium text-lg">此分類暫無內容</p>
-                  <Button variant="ghost" size="lg" onClick={() => setCurrentSubCategory('ALL')} className="mt-6">
-                    查看所有內容
-                  </Button>
+            {/* Unified Content Section */}
+            {listArticles.length > 0 ? (
+              <Section
+                title="最新發布"
+                icon={<LayoutGrid size={28} className="text-gray-700" />}
+                description="匯集各類優質內容"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10 animate-[fadeIn_0.7s_ease-out]">
+                  {listArticles.map(article => (
+                    <ArticleCard
+                      key={article.id}
+                      article={article}
+                      onClick={() => handleArticleClick(article)}
+                      isRead={isArticleRead(article.id)}
+                    />
+                  ))}
                 </div>
-              )}
-
-            </div>
+              </Section>
+            ) : visibleArticles.length === 0 ? (
+              <div className="text-center py-24 flex flex-col items-center">
+                <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-6">
+                  <ArrowLeft size={32} className="text-gray-400" />
+                </div>
+                <p className="text-gray-500 font-medium text-lg">此分類暫無內容</p>
+                <Button variant="ghost" size="lg" onClick={() => setCurrentSubCategory('ALL')} className="mt-6">
+                  查看所有內容
+                </Button>
+              </div>
+            ) : null}
           </main>
         </>
       )}
