@@ -19,7 +19,7 @@ A React application built with Vite, TypeScript, and Tailwind CSS (planned).
     ```bash
     npm run dev
     ```
-    
+     
 ## Scripts
 
 -   `npm run dev`: Starts the development server.
