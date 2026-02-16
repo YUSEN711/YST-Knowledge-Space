@@ -283,10 +283,11 @@ function App() {
     content?: string;
     keyPoints?: string;
     conclusion?: string;
+    imageUrl?: string;
   }) => {
     // Try to get YouTube thumbnail if it's a video
-    let imageUrl = `https://picsum.photos/800/600?random=${Date.now()}`;
-    if (data.type === 'YOUTUBE') {
+    let imageUrl = data.imageUrl || `https://picsum.photos/800/600?random=${Date.now()}`;
+    if (data.type === 'YOUTUBE' && !data.imageUrl) {
       const thumb = getYoutubeThumbnail(data.url);
       if (thumb) imageUrl = thumb;
     }

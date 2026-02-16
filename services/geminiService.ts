@@ -17,13 +17,17 @@ export const analyzeArticleContent = async (title: string, description: string):
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `
       You are an expert content curator for a high-end tech and knowledge website.
-      Analyze the following article title and user description.
+      Analyze the following article title and user description (if provided).
+      
       1. Create a concise, professional summary (max 2 sentences, Traditional Chinese).
       2. Categorize it into one of the following exact categories: '科技創新', '設計美學', '商業趨勢', '科學探索', '生活風格'.
       3. Generate 3 short tags.
+      4. Generate a 'content' section: A detailed simulated article body or detailed description based on the title (approx 300 words).
+      5. Generate 'keyPoints': A bulleted list of 3-5 key takeaways.
+      6. Generate 'conclusion': A thoughtful concluding paragraph.
 
       Title: ${title}
-      Description: ${description}
+      Description: ${description || 'No description provided, please generate based on title'}
     `;
 
     const response = await ai.models.generateContent({
@@ -48,9 +52,12 @@ export const analyzeArticleContent = async (title: string, description: string):
             tags: {
               type: Type.ARRAY,
               items: { type: Type.STRING }
-            }
+            },
+            content: { type: Type.STRING },
+            keyPoints: { type: Type.STRING },
+            conclusion: { type: Type.STRING }
           },
-          required: ["summary", "category", "tags"]
+          required: ["summary", "category", "tags", "content", "keyPoints", "conclusion"]
         }
       }
     });
@@ -69,7 +76,10 @@ export const analyzeArticleContent = async (title: string, description: string):
     return {
       summary: description.substring(0, 100) + "...",
       category: Category.TECH,
-      tags: ["General"]
+      tags: ["General"],
+      content: "無法生成內容",
+      keyPoints: "無法生成重點",
+      conclusion: "無法生成結語"
     };
   }
 };

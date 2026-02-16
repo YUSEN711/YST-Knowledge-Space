@@ -29,6 +29,9 @@ export interface AIAnalysisResult {
   summary: string;
   category: Category;
   tags: string[];
+  content?: string;
+  keyPoints?: string;
+  conclusion?: string;
 }
 
 export interface User {

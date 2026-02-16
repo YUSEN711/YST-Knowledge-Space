@@ -16,6 +16,7 @@ interface SubmitModalProps {
     content?: string;
     keyPoints?: string;
     conclusion?: string;
+    imageUrl?: string;
   }) => void;
 }
 
@@ -24,6 +25,37 @@ const getYouTubeVideoId = (url: string): string | null => {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   return (match && match[2].length === 11) ? match[2] : null;
+};
+
+// Fetch Book Cover from Google Books
+const fetchBookCover = async (title: string): Promise<string | null> => {
+  try {
+    const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(title)}&maxResults=1`);
+    const data = await response.json();
+    const book = data.items?.[0];
+    return book?.volumeInfo?.imageLinks?.thumbnail?.replace('http:', 'https:') || null;
+  } catch (error) {
+    console.error('Failed to fetch book cover:', error);
+    return null;
+  }
+};
+
+// Fetch OG Image via Proxy
+const fetchOgImage = async (url: string): Promise<string | null> => {
+  try {
+    // Using a CORS proxy to fetch the page content
+    const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    const data = await response.json();
+    if (!data.contents) return null;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(data.contents, 'text/html');
+    const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
+    return ogImage || null;
+  } catch (error) {
+    console.error('Failed to fetch OG image:', error);
+    return null;
+  }
 };
 
 // Fetch title from URL
@@ -40,11 +72,12 @@ const fetchTitleFromUrl = async (url: string, type: ResourceType): Promise<strin
       const data = await response.json();
       return data.title || null;
     } else {
-      // For regular URLs, try to fetch the title from HTML
-      // Note: This may fail due to CORS. A proper implementation would need a backend proxy
-      const response = await fetch(url, { mode: 'cors' });
-      const html = await response.text();
-      const match = html.match(/<title>([^<]*)<\/title>/i);
+      // For regular URLs, try to fetch the title from HTML using proxy
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+      const data = await response.json();
+      if (!data.contents) return null;
+
+      const match = data.contents.match(/<title>([^<]*)<\/title>/i);
       return match ? match[1].trim() : null;
     }
   } catch (error) {
@@ -100,22 +133,55 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate network delay
-    setTimeout(() => {
+    try {
+      let finalDescription = description;
+      let finalContent = content;
+      let finalKeyPoints = keyPoints;
+      let finalConclusion = conclusion;
+      let finalCategory = category;
+
+      // 1. Auto-fill content if missing
+      if (!description || !content || !keyPoints || !conclusion) {
+        setIsAnalyzing(true);
+        try {
+          const result = await analyzeArticleContent(title, description || title);
+          if (!description) finalDescription = result.summary;
+          if (!content) finalContent = result.content || '';
+          if (!keyPoints) finalKeyPoints = result.keyPoints || '';
+          if (!conclusion) finalConclusion = result.conclusion || '';
+          // Only update category if user hasn't manually selected one (or if it's default)
+          if (category === Category.TECH) finalCategory = result.category;
+        } catch (error) {
+          console.error("Auto-fill failed:", error);
+        } finally {
+          setIsAnalyzing(false);
+        }
+      }
+
+      // 2. Fetch Image based on Type
+      let fetchedImage: string | null = null;
+      if (resourceType === 'BOOK' && title) {
+        fetchedImage = await fetchBookCover(title);
+      } else if (resourceType === 'ARTICLE' && url) {
+        fetchedImage = await fetchOgImage(url);
+      }
+
       onSubmit({
         title,
-        summary: description,
-        category,
+        summary: finalDescription,
+        category: finalCategory,
         url,
         type: resourceType,
-        content: content || undefined,
-        keyPoints: keyPoints || undefined,
-        conclusion: conclusion || undefined
+        content: finalContent || undefined,
+        keyPoints: finalKeyPoints || undefined,
+        conclusion: finalConclusion || undefined,
+        imageUrl: fetchedImage || undefined
       });
+
       // Reset form
       setUrl('');
       setTitle('');
@@ -127,7 +193,11 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       setResourceType('ARTICLE');
       setIsSubmitting(false);
       onClose();
-    }, 800);
+
+    } catch (error) {
+      console.error("Submit failed:", error);
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -295,8 +365,8 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
                   type="button"
                   onClick={() => setCategory(cat)}
                   className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${category === cat
-                      ? 'bg-black text-white shadow-md transform scale-[1.02]'
-                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                    ? 'bg-black text-white shadow-md transform scale-[1.02]'
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                     }`}
                 >
                   {cat}
