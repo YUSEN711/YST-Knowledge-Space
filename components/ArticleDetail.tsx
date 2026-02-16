@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Calendar, User, ExternalLink, Share2, Bookmark, Check, Link as LinkIcon, Facebook, Twitter, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, User, ExternalLink, Share2, Bookmark, Check, Link as LinkIcon, Facebook, Twitter, Send, Trash2, Edit2 } from 'lucide-react';
 import { Article, User as UserType } from '../types';
 import { Button } from './Button';
 
@@ -9,10 +9,11 @@ interface ArticleDetailProps {
   isSaved: boolean;
   onToggleSave: () => void;
   onDelete: () => void;
+  onEdit?: (article: Article) => void;
   currentUser: UserType | null;
 }
 
-export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, isSaved, onToggleSave, onDelete, currentUser }) => {
+export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, isSaved, onToggleSave, onDelete, onEdit, currentUser }) => {
   const [showToast, setShowToast] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const shareMenuRef = useRef<HTMLDivElement>(null);
@@ -38,6 +39,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
 
   // Permission Check: Author OR Super Admin (Jason)
   const canDelete = currentUser && (currentUser.name === article.author || currentUser.name === 'Jason');
+  const canEdit = currentUser && currentUser.name === 'Jason';
 
   const handleDeleteClick = () => {
     // Remove confirmation for immediate action
@@ -130,6 +132,17 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
           </button>
 
           <div className="flex gap-2 sm:gap-3 relative">
+            {/* Edit Button - Only visible to Jason */}
+            {canEdit && onEdit && (
+              <button
+                onClick={() => onEdit(article)}
+                className="p-3 rounded-full transition-all shadow-sm border border-gray-100/50 bg-white text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                title="編輯文章"
+              >
+                <Edit2 size={20} />
+              </button>
+            )}
+
             {/* Delete Button - Only visible to Author or Jason */}
             {canDelete && (
               <button
@@ -238,7 +251,9 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
           </div>
 
           {/* Hero Image */}
-          <div className="w-full aspect-[16/9] rounded-[2rem] overflow-hidden shadow-soft mb-16 bg-gray-100 relative group">
+          <div className={`w-full rounded-[2rem] overflow-hidden shadow-soft mb-16 bg-gray-100 relative group mx-auto
+            ${article.type === 'BOOK' ? 'max-w-[70%] aspect-[2/3]' : 'aspect-[16/9]'}`}
+          >
             <a
               href={article.url}
               target="_blank"

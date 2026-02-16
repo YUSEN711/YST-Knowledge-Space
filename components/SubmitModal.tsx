@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Sparkles, Link as LinkIcon, Type, FileText, Youtube, BookOpen, Loader2 } from 'lucide-react';
 import { Button } from './Button';
-import { Category, ResourceType } from '../types';
+import { Article, Category, ResourceType } from '../types';
 import { analyzeArticleContent } from '../services/geminiService';
 
 interface SubmitModalProps {
@@ -18,6 +18,7 @@ interface SubmitModalProps {
     conclusion?: string;
     imageUrl?: string;
   }) => void;
+  initialData?: Article | null;
 }
 
 // Helper to extract YouTube video ID
@@ -120,7 +121,7 @@ const fetchTitleFromUrl = async (url: string, type: ResourceType): Promise<strin
   }
 };
 
-export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit }) => {
+export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit, initialData }) => {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -154,7 +155,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
     setIsAnalyzing(true);
     try {
       // Pass the user input to Gemini to clean up
-      const result = await analyzeArticleContent(title, description, resourceType);
+      const result = await analyzeArticleContent(title, description, resourceType, url);
 
       // Update fields with AI suggestions
       setDescription(result.summary);
@@ -185,7 +186,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       if (!description || !content || !keyPoints || !conclusion) {
         setIsAnalyzing(true);
         try {
-          const result = await analyzeArticleContent(title, description || title, resourceType);
+          const result = await analyzeArticleContent(title, description || title, resourceType, url);
           if (!description) finalDescription = result.summary;
           if (!content) finalContent = result.content || '';
           if (!keyPoints) finalKeyPoints = result.keyPoints || '';
@@ -249,7 +250,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <h3 className="text-xl font-semibold text-gray-900">分享新知</h3>
+          <h3 className="text-xl font-semibold text-gray-900">{initialData ? '編輯內容' : '分享新知'}</h3>
           <button
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"
@@ -260,7 +261,6 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 block">資源類型</label>
             <div className="flex p-1 bg-gray-100 rounded-xl">
@@ -338,7 +338,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
                 className="text-xs flex items-center gap-1 text-purple-600 hover:text-purple-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Sparkles size={12} />
-                AI 潤飾心得
+                AI 自動生成內容
               </button>
             </div>
             <textarea
@@ -393,24 +393,26 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700 block">分類</label>
-            <div className="grid grid-cols-3 gap-2">
-              {Object.values(Category).map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategory(cat)}
-                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${category === cat
-                    ? 'bg-black text-white shadow-md transform scale-[1.02]'
-                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
-                >
-                  {cat}
-                </button>
-              ))}
+          {resourceType !== 'BOOK' && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700 block">分類</label>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.values(Category).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategory(cat)}
+                    className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${category === cat
+                      ? 'bg-black text-white shadow-md transform scale-[1.02]'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="pt-4">
             <Button
@@ -419,12 +421,12 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
               className="w-full"
               isLoading={isSubmitting}
             >
-              發布內容
+              {initialData ? '更新內容' : '發布內容'}
             </Button>
           </div>
 
         </form>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };

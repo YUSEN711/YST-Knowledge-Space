@@ -240,6 +240,9 @@ function App() {
         return article.category === currentSubCategory;
       }
 
+      // For other tabs: EXCLUDE Books completely
+      if (article.type === 'BOOK') return false;
+
       // Regular category-based filtering for other tabs
       // Must belong to one of the allowed categories for this Top Level
       const isAllowedInTopLevel = allowedSubCategories.includes(article.category);
@@ -274,6 +277,9 @@ function App() {
   const isArticleSaved = (id: string) => currentUser?.savedArticleIds.includes(id) || false;
   const isArticleRead = (id: string) => currentUser?.readArticleIds.includes(id) || false;
 
+  // Editing State
+  const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+
   const handleAddArticle = (data: {
     title: string;
     summary: string;
@@ -307,6 +313,54 @@ function App() {
       conclusion: data.conclusion
     };
     setArticles(prev => [newArticle, ...prev]);
+  };
+
+  const handleUpdateArticle = (data: {
+    title: string;
+    summary: string;
+    category: Category;
+    url: string;
+    type: ResourceType;
+    content?: string;
+    keyPoints?: string;
+    conclusion?: string;
+    imageUrl?: string;
+  }) => {
+    if (!editingArticle) return;
+
+    setArticles(prev => prev.map(a => {
+      if (a.id === editingArticle.id) {
+        // Keep existing ID, date, author, but update content
+        // Update Image only if changed/provided, otherwise keep existing
+        let imageUrl = data.imageUrl || a.imageUrl;
+        // If type changed to YouTube and no image, try fetching thumb (edge case)
+        if (data.type === 'YOUTUBE' && !data.imageUrl && a.type !== 'YOUTUBE') {
+          const thumb = getYoutubeThumbnail(data.url);
+          if (thumb) imageUrl = thumb;
+        }
+
+        return {
+          ...a,
+          title: data.title,
+          summary: data.summary,
+          category: data.category,
+          url: data.url,
+          type: data.type,
+          content: data.content,
+          keyPoints: data.keyPoints,
+          conclusion: data.conclusion,
+          imageUrl: imageUrl
+        };
+      }
+      return a;
+    }));
+
+    // Also update selectedArticle if we are currently viewing it
+    if (selectedArticle && selectedArticle.id === editingArticle.id) {
+      setSelectedArticle(prev => prev ? ({ ...prev, ...data, imageUrl: data.imageUrl || prev.imageUrl }) : null);
+    }
+
+    setEditingArticle(null);
   };
 
   // Track scroll for filter bar styling
@@ -346,6 +400,10 @@ function App() {
           isSaved={isArticleSaved(selectedArticle.id)}
           onToggleSave={() => toggleSaveArticle(selectedArticle.id)}
           onDelete={() => handleSoftDeleteArticle(selectedArticle.id)}
+          onEdit={(article) => {
+            setEditingArticle(article);
+            setIsModalOpen(true);
+          }}
           currentUser={currentUser}
         />
       ) : (
@@ -438,8 +496,12 @@ function App() {
 
       <SubmitModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleAddArticle}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingArticle(null);
+        }}
+        onSubmit={editingArticle ? handleUpdateArticle : handleAddArticle}
+        initialData={editingArticle}
       />
 
       <SavedModal
