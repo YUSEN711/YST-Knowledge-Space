@@ -326,22 +326,20 @@ function App() {
           currentUser={currentUser}
         />
       ) : (
-        <main className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 pt-8 space-y-16">
-
-          {/* Sub-Category Filter Bar */}
+        <>
+          {/* Sub-Category Filter Bar - Full Width */}
           <div
-            className={`sticky top-20 z-40 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto no-scrollbar transition-all duration-300
-              ${isScrolled ? 'pt-1 pb-1' : 'pt-2 pb-2'} 
-              md:pt-6 md:pb-4
+            className={`sticky top-20 z-40 w-full overflow-x-auto no-scrollbar transition-all duration-300
+              ${isScrolled ? 'py-1 md:py-2' : 'py-1 md:py-2'} 
               ${isScrolled
                 ? 'bg-[#f5f5f7]/95 backdrop-blur-sm shadow-sm'
                 : 'bg-[#f5f5f7]'
               }
-              [mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-20px),transparent)]
-              md:[mask-image:none]
+              [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-12px),transparent)]
+              md:[mask-image:linear-gradient(to_right,transparent,black_30px,black_calc(100%-30px),transparent)]
             `}
           >
-            <div className="flex gap-2 md:gap-3 min-w-max px-4 sm:px-0">
+            <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 flex gap-2 md:gap-3 min-w-max">
               <button
                 onClick={() => setCurrentSubCategory('ALL')}
                 className={`
@@ -370,97 +368,99 @@ function App() {
             </div>
           </div>
 
-          {/* Featured Hero Section */}
-          {heroArticle && (
-            <section className="animate-[fadeIn_0.5s_ease-out]">
-              <ArticleCard
-                article={heroArticle}
-                featured
-                onClick={() => handleArticleClick(heroArticle)}
-                isRead={isArticleRead(heroArticle.id)}
-              />
-            </section>
-          )}
-
-          {/* Content Sections Grouped by Type */}
-          <div className="space-y-16 sm:space-y-24 animate-[fadeIn_0.7s_ease-out]">
-
-            {/* 1. YouTube Section */}
-            {groupedContent.YOUTUBE.length > 0 && (
-              <Section
-                title="影片"
-                icon={<Youtube size={28} className="text-red-600" />}
-                description="深度解析與趨勢觀察"
-              >
-                {/* Mobile: grid-cols-1 (Large images). Tablet+: grid-cols-2 or 3 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
-                  {groupedContent.YOUTUBE.map(article => (
-                    <ArticleCard
-                      key={article.id}
-                      article={article}
-                      onClick={() => handleArticleClick(article)}
-                      isRead={isArticleRead(article.id)}
-                    />
-                  ))}
-                </div>
-              </Section>
+          <main className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 pt-6 space-y-16">
+            {/* Featured Hero Section */}
+            {heroArticle && (
+              <section className="animate-[fadeIn_0.5s_ease-out]">
+                <ArticleCard
+                  article={heroArticle}
+                  featured
+                  onClick={() => handleArticleClick(heroArticle)}
+                  isRead={isArticleRead(heroArticle.id)}
+                />
+              </section>
             )}
 
-            {/* 2. Article Section */}
-            {groupedContent.ARTICLE.length > 0 && (
-              <Section
-                title="深度文章"
-                icon={<FileText size={28} className="text-blue-600" />}
-                description="專業見解與知識分享"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
-                  {groupedContent.ARTICLE.map(article => (
-                    <ArticleCard
-                      key={article.id}
-                      article={article}
-                      onClick={() => handleArticleClick(article)}
-                      isRead={isArticleRead(article.id)}
-                    />
-                  ))}
-                </div>
-              </Section>
-            )}
+            {/* Content Sections Grouped by Type */}
+            <div className="space-y-16 sm:space-y-24 animate-[fadeIn_0.7s_ease-out]">
 
-            {/* 3. Book Section */}
-            {groupedContent.BOOK.length > 0 && (
-              <Section
-                title="閱讀書籍"
-                icon={<BookOpen size={28} className="text-orange-600" />}
-                description="值得收藏的經典讀物"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
-                  {groupedContent.BOOK.map(article => (
-                    <ArticleCard
-                      key={article.id}
-                      article={article}
-                      onClick={() => handleArticleClick(article)}
-                      isRead={isArticleRead(article.id)}
-                    />
-                  ))}
-                </div>
-              </Section>
-            )}
+              {/* 1. YouTube Section */}
+              {groupedContent.YOUTUBE.length > 0 && (
+                <Section
+                  title="影片"
+                  icon={<Youtube size={28} className="text-red-600" />}
+                  description="深度解析與趨勢觀察"
+                >
+                  {/* Mobile: grid-cols-1 (Large images). Tablet+: grid-cols-2 or 3 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
+                    {groupedContent.YOUTUBE.map(article => (
+                      <ArticleCard
+                        key={article.id}
+                        article={article}
+                        onClick={() => handleArticleClick(article)}
+                        isRead={isArticleRead(article.id)}
+                      />
+                    ))}
+                  </div>
+                </Section>
+              )}
 
-            {/* Empty State */}
-            {visibleArticles.length === 0 && (
-              <div className="text-center py-24 flex flex-col items-center">
-                <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-6">
-                  <ArrowLeft size={32} className="text-gray-400" />
-                </div>
-                <p className="text-gray-500 font-medium text-lg">此分類暫無內容</p>
-                <Button variant="ghost" size="lg" onClick={() => setCurrentSubCategory('ALL')} className="mt-6">
-                  查看所有內容
-                </Button>
-              </div>
-            )}
+              {/* 2. Article Section */}
+              {groupedContent.ARTICLE.length > 0 && (
+                <Section
+                  title="深度文章"
+                  icon={<FileText size={28} className="text-blue-600" />}
+                  description="專業見解與知識分享"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
+                    {groupedContent.ARTICLE.map(article => (
+                      <ArticleCard
+                        key={article.id}
+                        article={article}
+                        onClick={() => handleArticleClick(article)}
+                        isRead={isArticleRead(article.id)}
+                      />
+                    ))}
+                  </div>
+                </Section>
+              )}
 
-          </div>
-        </main>
+              {/* 3. Book Section */}
+              {groupedContent.BOOK.length > 0 && (
+                <Section
+                  title="閱讀書籍"
+                  icon={<BookOpen size={28} className="text-orange-600" />}
+                  description="值得收藏的經典讀物"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10">
+                    {groupedContent.BOOK.map(article => (
+                      <ArticleCard
+                        key={article.id}
+                        article={article}
+                        onClick={() => handleArticleClick(article)}
+                        isRead={isArticleRead(article.id)}
+                      />
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Empty State */}
+              {visibleArticles.length === 0 && (
+                <div className="text-center py-24 flex flex-col items-center">
+                  <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-6">
+                    <ArrowLeft size={32} className="text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 font-medium text-lg">此分類暫無內容</p>
+                  <Button variant="ghost" size="lg" onClick={() => setCurrentSubCategory('ALL')} className="mt-6">
+                    查看所有內容
+                  </Button>
+                </div>
+              )}
+
+            </div>
+          </main>
+        </>
       )}
 
       <SubmitModal
