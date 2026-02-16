@@ -19,6 +19,8 @@ interface SubmitModalProps {
     imageUrl?: string;
   }) => void;
   initialData?: Article | null;
+  apiKey?: string;
+  onOpenSettings?: () => void;
 }
 
 // Helper to extract YouTube video ID
@@ -148,7 +150,7 @@ const fetchPageContent = async (url: string): Promise<string> => {
   }
 };
 
-export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit, initialData }) => {
+export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit, initialData, apiKey, onOpenSettings }) => {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -249,7 +251,20 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       setAnalyzingStatus('AI 正在分析與生成內容...');
 
       // 2. Pass content to Gemini
-      const result = await analyzeArticleContent(title, description, resourceType, url, pageContent);
+      // Check for API key first
+      if (!apiKey) {
+        if (onOpenSettings) {
+          const confirm = window.confirm("尚未設定 API Key，無法自動生成內容。\n是否前往設定？");
+          if (confirm) {
+            onOpenSettings();
+            setIsAnalyzing(false);
+            setAnalyzingStatus('');
+            return;
+          }
+        }
+      }
+
+      const result = await analyzeArticleContent(apiKey || '', title, description, resourceType, url, pageContent);
 
       // Update fields with AI suggestions
       setDescription(result.summary);
@@ -292,7 +307,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
             } catch (e) { }
           }
 
-          const result = await analyzeArticleContent(title, description || title, resourceType, url, pageContent);
+          const result = await analyzeArticleContent(apiKey || '', title, description || title, resourceType, url, pageContent);
           if (!description) finalDescription = result.summary;
           if (!content) finalContent = result.content || '';
           if (!keyPoints) finalKeyPoints = result.keyPoints || '';

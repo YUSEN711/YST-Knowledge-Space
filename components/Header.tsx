@@ -10,6 +10,7 @@ interface HeaderProps {
   onOpenSaved: () => void;
   onOpenLogin: () => void;
   onOpenTrash: () => void;
+  onOpenSettings: () => void; // New prop
   currentTopLevel: TopLevelCategory;
   onTopLevelChange: (level: TopLevelCategory) => void;
   user: User | null;
@@ -21,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSaved,
   onOpenLogin,
   onOpenTrash,
+  onOpenSettings,
   currentTopLevel,
   onTopLevelChange,
   user,
@@ -91,8 +93,8 @@ export const Header: React.FC<HeaderProps> = ({
                 }}
                 onClick={() => onTopLevelChange(item.id)}
                 className={`px-5 py-2 rounded-full text-base font-medium transition-all duration-200 whitespace-nowrap relative z-10 ${currentTopLevel === item.id
-                    ? 'text-black'
-                    : 'text-gray-500 hover:text-gray-900'
+                  ? 'text-black'
+                  : 'text-gray-500 hover:text-gray-900'
                   }`}
               >
                 {item.label}
@@ -115,6 +117,19 @@ export const Header: React.FC<HeaderProps> = ({
                 <Trash2 size={20} />
               </Button>
             )}
+
+            {/* Settings Button */}
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={onOpenSettings}
+              className="hidden md:flex items-center gap-2 !px-3 text-gray-500 hover:text-gray-900 bg-gray-50/50 hover:bg-gray-100"
+              title="設定 API Key"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold">API</span>
+              </div>
+            </Button>
 
             {user ? (
               <>
@@ -208,6 +223,14 @@ export const Header: React.FC<HeaderProps> = ({
                     最近刪除
                   </button>
                 )}
+
+                {/* Settings Link (Mobile) */}
+                <button
+                  onClick={() => { onOpenSettings(); setIsMobileMenuOpen(false); }}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 text-gray-700 font-medium flex items-center gap-2"
+                >
+                  <span className="font-bold">API 設定</span>
+                </button>
               </div>
             ) : (
               <button

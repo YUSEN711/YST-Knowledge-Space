@@ -1,16 +1,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Category, AIAnalysisResult } from '../types';
 
-export const analyzeArticleContent = async (title: string, description: string, resourceType: string = 'ARTICLE', url: string = '', pageContent: string = ''): Promise<AIAnalysisResult> => {
-  const apiKey = process.env.API_KEY;
-
+export const analyzeArticleContent = async (apiKey: string, title: string, description: string, resourceType: string = 'ARTICLE', url: string = '', pageContent: string = ''): Promise<AIAnalysisResult> => {
+  // Check if API Key is provided
   if (!apiKey) {
-    console.warn("No API Key found for Gemini. Returning fallback.");
+    console.warn("No API Key provided. Returning fallback.");
     return {
       summary: description ? description.substring(0, 100) + "..." : "無法生成摘要 (未設定 API Key)",
       category: Category.TECH,
       tags: ["General"],
-      content: "無法生成內容 (未設定 API Key)",
+      content: "無法生成內容 (未設定 API Key - 請點擊右上角設定輸入)",
       keyPoints: "無法生成重點 (未設定 API Key)",
       conclusion: "無法生成結語 (未設定 API Key)"
     };
@@ -97,7 +96,7 @@ export const analyzeArticleContent = async (title: string, description: string, 
       summary: description.substring(0, 100) + "...",
       category: Category.TECH,
       tags: ["General"],
-      content: "無法生成內容",
+      content: "無法生成內容 (AI 連線失敗或配額不足)",
       keyPoints: "無法生成重點",
       conclusion: "無法生成結語"
     };
