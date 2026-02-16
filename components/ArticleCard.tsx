@@ -75,6 +75,38 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({ article, featured = fa
     );
   }
 
+  if (article.type === 'BOOK' && !featured) {
+    return (
+      <div
+        onClick={onClick}
+        className="group relative flex flex-col cursor-pointer"
+      >
+        <div className="relative w-full aspect-[2/3] rounded-[1rem] overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 bg-gray-200">
+          <img
+            src={article.imageUrl}
+            alt={article.title}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+          {/* Read Status Badge */}
+          {isRead && (
+            <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-md text-white/90 text-[10px] font-medium rounded-md border border-white/10">
+              已讀
+            </div>
+          )}
+        </div>
+        <div className="mt-4 px-1">
+          <h3 className="text-lg font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors line-clamp-2">
+            {article.title}
+          </h3>
+          <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 font-medium">
+            <span>{article.author}</span>
+            {/* Optional: Add star rating or other meta if available */}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       onClick={onClick}

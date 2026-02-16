@@ -141,6 +141,9 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       // Update fields with AI suggestions
       setDescription(result.summary);
       setCategory(result.category);
+      if (result.content) setContent(result.content);
+      if (result.keyPoints) setKeyPoints(result.keyPoints);
+      if (result.conclusion) setConclusion(result.conclusion);
     } catch (e) {
       console.error(e);
       alert('AI 分析暫時無法使用，請手動輸入');
