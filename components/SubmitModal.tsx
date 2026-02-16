@@ -150,6 +150,32 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
     return () => clearTimeout(timer);
   }, [url, resourceType]); // Don't include title in deps to avoid prevent user edits
 
+  // Populate form with initialData when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setTitle(initialData.title);
+        setUrl(initialData.url);
+        setDescription(initialData.summary);
+        setCategory(initialData.category);
+        setResourceType(initialData.type);
+        setContent(initialData.content || '');
+        setKeyPoints(initialData.keyPoints || '');
+        setConclusion(initialData.conclusion || '');
+      } else {
+        // Reset form for new submission
+        setTitle('');
+        setUrl('');
+        setDescription('');
+        setCategory(Category.TECH);
+        setResourceType('ARTICLE');
+        setContent('');
+        setKeyPoints('');
+        setConclusion('');
+      }
+    }
+  }, [isOpen, initialData]);
+
   const handleAnalyze = async () => {
     if (!title && !description) return;
     setIsAnalyzing(true);
