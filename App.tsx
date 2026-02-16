@@ -286,6 +286,17 @@ function App() {
     setArticles(prev => [newArticle, ...prev]);
   };
 
+  // Track scroll for filter bar styling
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   // Get current sub-categories to display in the filter bar
   const currentSubCategoriesToDisplay = CATEGORY_MAPPING[currentTopLevel];
 
@@ -318,13 +329,26 @@ function App() {
         <main className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 pt-8 space-y-16">
 
           {/* Sub-Category Filter Bar */}
-          <div className="sticky top-20 z-40 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto no-scrollbar pt-6 pb-4 bg-[#f5f5f7]/95 backdrop-blur-sm transition-all">
-            <div className="flex gap-3 min-w-max">
+          <div
+            className={`sticky top-20 z-40 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto no-scrollbar transition-all duration-300
+              ${isScrolled ? 'pt-1 pb-1' : 'pt-2 pb-2'} 
+              md:pt-6 md:pb-4
+              ${isScrolled
+                ? 'bg-[#f5f5f7]/95 backdrop-blur-sm shadow-sm'
+                : 'bg-[#f5f5f7]'
+              }
+              [mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-20px),transparent)]
+              md:[mask-image:none]
+            `}
+          >
+            <div className="flex gap-2 md:gap-3 min-w-max px-4 sm:px-0">
               <button
                 onClick={() => setCurrentSubCategory('ALL')}
-                className={`px-4 py-2 text-sm md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === 'ALL'
-                  ? 'bg-black text-white border-black shadow-md'
-                  : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
+                className={`
+                  ${isScrolled ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-sm'}
+                  md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === 'ALL'
+                    ? 'bg-black text-white border-black shadow-md'
+                    : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
                   }`}
               >
                 全部
@@ -333,9 +357,11 @@ function App() {
                 <button
                   key={cat}
                   onClick={() => setCurrentSubCategory(cat)}
-                  className={`px-4 py-2 text-sm md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === cat
-                    ? 'bg-black text-white border-black shadow-md'
-                    : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
+                  className={`
+                    ${isScrolled ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-sm'}
+                    md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === cat
+                      ? 'bg-black text-white border-black shadow-md'
+                      : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
                     }`}
                 >
                   {cat}
