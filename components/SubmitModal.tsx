@@ -27,20 +27,32 @@ const getYouTubeVideoId = (url: string): string | null => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
-// Fetch Book Cover from Google Books
+// Fetch Book Cover from Google Books (High Res)
 const fetchBookCover = async (title: string): Promise<string | null> => {
   try {
     const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(title)}&maxResults=1`);
     const data = await response.json();
     const book = data.items?.[0];
-    return book?.volumeInfo?.imageLinks?.thumbnail?.replace('http:', 'https:') || null;
+    const images = book?.volumeInfo?.imageLinks;
+
+    if (!images) return null;
+
+    // Prioritize higher resolution images
+    let imageUrl = images.extraLarge || images.large || images.medium || images.small || images.thumbnail || images.smallThumbnail;
+
+    if (imageUrl) {
+      // Remove edge=curl and ensure https
+      imageUrl = imageUrl.replace('http:', 'https:').replace('&edge=curl', '');
+    }
+
+    return imageUrl || null;
   } catch (error) {
     console.error('Failed to fetch book cover:', error);
     return null;
   }
 };
 
-// Fetch OG Image via Proxy
+// Fetch OG Image via Proxy (High Res)
 const fetchOgImage = async (url: string): Promise<string | null> => {
   try {
     // Using a CORS proxy to fetch the page content
@@ -50,8 +62,12 @@ const fetchOgImage = async (url: string): Promise<string | null> => {
 
     const parser = new DOMParser();
     const doc = parser.parseFromString(data.contents, 'text/html');
+
+    // Try both twitter:image (often larger) and og:image
+    const twitterImage = doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
     const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
-    return ogImage || null;
+
+    return twitterImage || ogImage || null;
   } catch (error) {
     console.error('Failed to fetch OG image:', error);
     return null;
