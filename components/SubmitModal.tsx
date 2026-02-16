@@ -27,14 +27,30 @@ const getYouTubeVideoId = (url: string): string | null => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
-// Fetch Book Cover from Google Books (High Res)
+// Fetch Book Cover from Google Books (High Res) with Open Library Fallback
 const fetchBookCover = async (title: string): Promise<string | null> => {
   try {
     const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(title)}&maxResults=1`);
     const data = await response.json();
     const book = data.items?.[0];
-    const images = book?.volumeInfo?.imageLinks;
 
+    if (!book) return null;
+
+    // 1. Try Open Library High Res Cover if ISBN exists
+    const isbn = book.volumeInfo?.industryIdentifiers?.find((id: any) => id.type === 'ISBN_13')?.identifier;
+    if (isbn) {
+      const openLibraryUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg?default=false`;
+      // Check if image exists (Open Library returns 404 if 'default=false' is set and no cover found)
+      try {
+        const check = await fetch(openLibraryUrl, { method: 'HEAD' });
+        if (check.ok) return openLibraryUrl;
+      } catch (e) {
+        console.warn("Open Library check failed, falling back to Google Books");
+      }
+    }
+
+    // 2. Google Books Fallback
+    const images = book.volumeInfo?.imageLinks;
     if (!images) return null;
 
     // Prioritize higher resolution images
@@ -43,6 +59,8 @@ const fetchBookCover = async (title: string): Promise<string | null> => {
     if (imageUrl) {
       // Remove edge=curl and ensure https
       imageUrl = imageUrl.replace('http:', 'https:').replace('&edge=curl', '');
+      // Try to get higher res by removing zoom or setting it to 0
+      imageUrl = imageUrl.replace('&zoom=1', '&zoom=0');
     }
 
     return imageUrl || null;
