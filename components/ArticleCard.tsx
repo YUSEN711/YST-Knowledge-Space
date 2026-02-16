@@ -26,7 +26,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({ article, featured = fa
     return (
       <div
         onClick={onClick}
-        className="group relative block w-full aspect-[4/3] md:aspect-[2.5/1] overflow-hidden rounded-[2rem] shadow-soft hover:shadow-hover transition-all duration-500 transform hover:scale-[1.01] cursor-pointer"
+        className="group relative block w-full aspect-[4/3] md:aspect-[2.5/1] overflow-hidden rounded-[2rem] shadow-soft hover:shadow-hover transition-all duration-500 transform hover:scale-[1.01] cursor-pointer isolate z-0"
       >
         <img
           src={article.imageUrl}
@@ -77,7 +77,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({ article, featured = fa
   return (
     <div
       onClick={onClick}
-      className="group flex flex-col bg-white rounded-2xl md:rounded-[2rem] overflow-hidden shadow-soft hover:shadow-hover transition-all duration-300 transform hover:-translate-y-1 h-full cursor-pointer border border-gray-100"
+      className="group flex flex-col bg-white rounded-2xl md:rounded-[2rem] overflow-hidden shadow-soft hover:shadow-hover transition-all duration-300 transform hover:-translate-y-1 h-full cursor-pointer border border-gray-100 isolate z-0"
     >
       {/* Aspect Ratio */}
       <div className="relative aspect-[4/3] overflow-hidden">

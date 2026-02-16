@@ -408,7 +408,6 @@ function App() {
               <Section
                 title="最新發布"
                 icon={<LayoutGrid size={28} className="text-gray-700" />}
-                description="匯集各類優質內容"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10 animate-[fadeIn_0.7s_ease-out]">
                   {listArticles.map(article => (
@@ -478,7 +477,7 @@ function App() {
 }
 
 // Helper Component for Content Sections
-const Section = ({ title, icon, description, children }: { title: string, icon: React.ReactNode, description: string, children?: React.ReactNode }) => (
+const Section = ({ title, icon, description, children }: { title: string, icon: React.ReactNode, description?: string, children?: React.ReactNode }) => (
   <section className="relative">
     <div className="flex items-end justify-between mb-8 border-b border-gray-200 pb-5">
       <div>
@@ -486,7 +485,7 @@ const Section = ({ title, icon, description, children }: { title: string, icon: 
           {icon}
           <h2 className="text-3xl font-bold text-gray-900 tracking-tight">{title}</h2>
         </div>
-        <p className="text-base text-gray-500">{description}</p>
+        {description && <p className="text-base text-gray-500">{description}</p>}
       </div>
     </div>
     {children}
