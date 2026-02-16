@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Category, AIAnalysisResult } from '../types';
 
-export const analyzeArticleContent = async (title: string, description: string): Promise<AIAnalysisResult> => {
+export const analyzeArticleContent = async (title: string, description: string, resourceType: string = 'ARTICLE'): Promise<AIAnalysisResult> => {
   const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
@@ -15,15 +15,28 @@ export const analyzeArticleContent = async (title: string, description: string):
 
   try {
     const ai = new GoogleGenAI({ apiKey });
+
+    let specificInstructions = "";
+    if (resourceType === 'BOOK') {
+      specificInstructions = `
+        4. Generate a 'content' section: A comprehensive book outline, including main chapters and their brief summaries (approx 300-500 words).
+        5. Generate 'keyPoints': A detailed analysis of critical reviews, key insights, and common reader perspectives (or user reviews found online).
+      `;
+    } else {
+      specificInstructions = `
+        4. Generate a 'content' section: A detailed simulated article body or detailed description based on the title (approx 300 words).
+        5. Generate 'keyPoints': A bulleted list of 3-5 key takeaways.
+      `;
+    }
+
     const prompt = `
       You are an expert content curator for a high-end tech and knowledge website.
-      Analyze the following article title and user description (if provided).
+      Analyze the following title and user description (if provided). Resource Type: ${resourceType}
       
       1. Create a concise, professional summary (max 2 sentences, Traditional Chinese).
       2. Categorize it into one of the following exact categories: '科技創新', '設計美學', '商業趨勢', '科學探索', '生活風格'.
       3. Generate 3 short tags.
-      4. Generate a 'content' section: A detailed simulated article body or detailed description based on the title (approx 300 words).
-      5. Generate 'keyPoints': A bulleted list of 3-5 key takeaways.
+      ${specificInstructions}
       6. Generate 'conclusion': A thoughtful concluding paragraph.
 
       Title: ${title}

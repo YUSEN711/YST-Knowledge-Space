@@ -154,7 +154,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
     setIsAnalyzing(true);
     try {
       // Pass the user input to Gemini to clean up
-      const result = await analyzeArticleContent(title, description);
+      const result = await analyzeArticleContent(title, description, resourceType);
 
       // Update fields with AI suggestions
       setDescription(result.summary);
@@ -185,7 +185,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       if (!description || !content || !keyPoints || !conclusion) {
         setIsAnalyzing(true);
         try {
-          const result = await analyzeArticleContent(title, description || title);
+          const result = await analyzeArticleContent(title, description || title, resourceType);
           if (!description) finalDescription = result.summary;
           if (!content) finalContent = result.content || '';
           if (!keyPoints) finalKeyPoints = result.keyPoints || '';
