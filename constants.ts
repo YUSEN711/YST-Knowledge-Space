@@ -89,3 +89,6 @@ export const CATEGORY_COLORS: Record<Category, string> = {
   [Category.SCIENCE]: 'bg-green-50 text-green-600',
   [Category.LIFESTYLE]: 'bg-orange-50 text-orange-600',
 };
+
+// Default API Key (User requested hardcoded default)
+export const DEFAULT_API_KEY = 'AIzaSyA56Mo5P7QweyH_dbjMDLao7tnoi5ydM8M';

@@ -50,7 +50,7 @@ export const analyzeArticleContent = async (apiKey: string, title: string, descr
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.0-flash-001",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -89,14 +89,15 @@ export const analyzeArticleContent = async (apiKey: string, title: string, descr
     const result = JSON.parse(text) as AIAnalysisResult;
     return result;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Analysis Failed:", error);
     // Fallback if AI fails
+    const errorMessage = error?.message || "Unknown error";
     return {
-      summary: description.substring(0, 100) + "...",
+      summary: description ? description.substring(0, 100) + "..." : "無法生成摘要",
       category: Category.TECH,
       tags: ["General"],
-      content: "無法生成內容 (AI 連線失敗或配額不足)",
+      content: `無法生成內容 (錯誤: ${errorMessage})`, // Show actual error
       keyPoints: "無法生成重點",
       conclusion: "無法生成結語"
     };

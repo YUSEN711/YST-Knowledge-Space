@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Sparkles, Link as LinkIcon, Type, FileText, Youtube, BookOpen, Loader2 } from 'lucide-react';
+import { X, Sparkles, Link as LinkIcon, Type, FileText, Youtube, BookOpen, Loader2, Key, Check } from 'lucide-react';
 import { Button } from './Button';
-import { Article, Category, ResourceType } from '../types';
+import { Article, Category, ResourceType, User } from '../types';
 import { analyzeArticleContent } from '../services/geminiService';
 
 interface SubmitModalProps {
@@ -20,7 +20,8 @@ interface SubmitModalProps {
   }) => void;
   initialData?: Article | null;
   apiKey?: string;
-  onOpenSettings?: () => void;
+  currentUser: User | null;
+  onSaveApiKey: (key: string) => void;
 }
 
 // Helper to extract YouTube video ID
@@ -150,7 +151,7 @@ const fetchPageContent = async (url: string): Promise<string> => {
   }
 };
 
-export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit, initialData, apiKey, onOpenSettings }) => {
+export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit, initialData, apiKey, currentUser, onSaveApiKey }) => {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -165,6 +166,22 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
   const [isFetchingTitle, setIsFetchingTitle] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [isFetchingImage, setIsFetchingImage] = useState(false);
+
+  // API Key State
+  const [localApiKey, setLocalApiKey] = useState('');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [isApiKeySaved, setIsApiKeySaved] = useState(false);
+
+  // Sync apiKey prop to local state
+  useEffect(() => {
+    if (apiKey) setLocalApiKey(apiKey);
+  }, [apiKey]);
+
+  const handleSaveKey = () => {
+    onSaveApiKey(localApiKey);
+    setIsApiKeySaved(true);
+    setTimeout(() => setIsApiKeySaved(false), 2000);
+  };
 
   // Auto-fetch title when URL changes (debounced)
   useEffect(() => {
@@ -253,15 +270,10 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       // 2. Pass content to Gemini
       // Check for API key first
       if (!apiKey) {
-        if (onOpenSettings) {
-          const confirm = window.confirm("尚未設定 API Key，無法自動生成內容。\n是否前往設定？");
-          if (confirm) {
-            onOpenSettings();
-            setIsAnalyzing(false);
-            setAnalyzingStatus('');
-            return;
-          }
-        }
+        alert("未設定 API Key，請聯繫 Jason 管理員");
+        setIsAnalyzing(false);
+        setAnalyzingStatus('');
+        return;
       }
 
       const result = await analyzeArticleContent(apiKey || '', title, description, resourceType, url, pageContent);
@@ -381,6 +393,10 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+
+          {/* API Key Section for Admin */}
+
+
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 block">資源類型</label>
             <div className="flex p-1 bg-gray-100 rounded-xl">

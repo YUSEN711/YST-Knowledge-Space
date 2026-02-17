@@ -8,7 +8,7 @@ import { TrashModal } from './components/TrashModal';
 import { AuthModal } from './components/AuthModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ArticleDetail } from './components/ArticleDetail';
-import { INITIAL_ARTICLES } from './constants';
+import { INITIAL_ARTICLES, DEFAULT_API_KEY } from './constants';
 import { Article, Category, ResourceType, User } from './types';
 import { Button } from './components/Button';
 import { analyzeArticleContent } from './services/geminiService';
@@ -71,9 +71,9 @@ function App() {
   // API Key State
   const [apiKey, setApiKey] = useState<string>(() => {
     try {
-      return localStorage.getItem('gemini_api_key') || '';
+      return localStorage.getItem('gemini_api_key') || DEFAULT_API_KEY;
     } catch {
-      return '';
+      return DEFAULT_API_KEY;
     }
   });
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -247,7 +247,7 @@ function App() {
 
   const isArticleRead = (id: string) => false; // Placeholder for now
 
-  const handleLogin = (username: string, pass: string) => {
+  const handleLogin = (username: string, pass?: string) => {
     // Simple mock login
     let user = usersDb[username];
     if (!user) {
@@ -260,16 +260,24 @@ function App() {
         role: username.toLowerCase() === 'jason' ? 'ADMIN' : 'USER',
         savedArticles: []
       };
+      // For new users, just save them
       setUsersDb(prev => ({ ...prev, [username]: user }));
     }
 
-    // Check password (mock)
-    if (pass === 'admin' || pass === '1234') { // Simple password check
+    // Check password (only for Jason/Admin)
+    if (username.toLowerCase() === 'jason') {
+      if (pass === 'admin' || pass === '1234') {
+        setCurrentUser(user);
+        localStorage.setItem('yst_user', JSON.stringify(user));
+        setIsLoginModalOpen(false);
+      } else {
+        alert('Admin password required (Try "admin")');
+      }
+    } else {
+      // Regular users auto-login for now (simplification)
       setCurrentUser(user);
       localStorage.setItem('yst_user', JSON.stringify(user));
       setIsLoginModalOpen(false);
-    } else {
-      alert('Password incorrect (Try "1234")');
     }
   };
 
@@ -290,7 +298,7 @@ function App() {
         onOpenSaved={() => setIsSavedModalOpen(true)}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onOpenTrash={() => setIsTrashModalOpen(true)}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
+
         currentTopLevel={currentTopLevel}
         onTopLevelChange={handleTopLevelChange}
         user={currentUser}
@@ -386,7 +394,7 @@ function App() {
                   ))}
                 </div>
               </Section>
-            ) : visibleArticles.length === 0 ? (
+            ) : filteredArticles.length === 0 ? (
               <div className="text-center py-24 flex flex-col items-center">
                 <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-6">
                   <ArrowLeft size={32} className="text-gray-400" />
@@ -410,7 +418,8 @@ function App() {
         onSubmit={editingArticle ? handleUpdateArticle : handleAddArticle}
         initialData={editingArticle}
         apiKey={apiKey}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        currentUser={currentUser}
+        onSaveApiKey={handleSaveApiKey}
       />
 
       <SavedModal
