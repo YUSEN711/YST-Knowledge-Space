@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { X, Sparkles, Link as LinkIcon, Type, FileText, Youtube, BookOpen, Loader2, Key, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Link as LinkIcon, Type, FileText, Youtube, BookOpen, Loader2, RefreshCw, Key, ArrowLeft } from 'lucide-react';
 import { Button } from './Button';
 import { Article, Category, ResourceType, User } from '../types';
-import { analyzeArticleContent } from '../services/geminiService';
 
 interface SubmitModalProps {
   isOpen: boolean;
@@ -19,9 +18,7 @@ interface SubmitModalProps {
     imageUrl?: string;
   }) => void;
   initialData?: Article | null;
-  apiKey?: string;
   currentUser: User | null;
-  onSaveApiKey: (key: string) => void;
 }
 
 // Helper to extract YouTube video ID
@@ -30,6 +27,61 @@ const getYouTubeVideoId = (url: string): string | null => {
   const match = url.match(regExp);
   return (match && match[2].length === 11) ? match[2] : null;
 };
+
+// --- Helpers for Robust Fetching ---
+
+const resolveUrl = (relativeUrl: string | null, baseUrl: string): string | null => {
+  if (!relativeUrl) return null;
+  try {
+    return new URL(relativeUrl, baseUrl).href;
+  } catch {
+    return null;
+  }
+};
+
+const fetchHtmlUsingProxies = async (url: string, logPrefix: string = '[ProxyFetch]'): Promise<Document | null> => {
+  const proxies = [
+    { name: 'AllOrigins', url: (u: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, isJson: true },
+    { name: 'CodeTabs', url: (u: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, isJson: false },
+    { name: 'CorsProxyIO', url: (u: string) => `https://corsproxy.io/?${encodeURIComponent(u)}`, isJson: false }
+  ];
+
+  for (const proxy of proxies) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s per proxy
+
+      console.log(`${logPrefix} Trying ${proxy.name} -> ${url}`);
+      const response = await fetch(proxy.url(url), { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.warn(`${logPrefix} Error ${response.status}: ${proxy.name}`);
+        continue;
+      }
+
+      let htmlContent = '';
+      if (proxy.isJson) {
+        const data = await response.json();
+        htmlContent = data.contents;
+      } else {
+        htmlContent = await response.text();
+      }
+
+      if (!htmlContent) continue;
+
+      const parser = new DOMParser();
+      return parser.parseFromString(htmlContent, 'text/html');
+
+    } catch (error) {
+      console.warn(`${logPrefix} Failed: ${proxy.name}`, error);
+      continue;
+    }
+  }
+  return null;
+};
+
+
 
 // Fetch Book Cover from Google Books (High Res) with Open Library Fallback
 const fetchBookCover = async (title: string): Promise<string | null> => {
@@ -75,154 +127,294 @@ const fetchBookCover = async (title: string): Promise<string | null> => {
 };
 
 // Fetch OG Image via Proxy (High Res)
+// Fetch OG Image via Proxy (High Res) with Fallbacks
+// Fetch OG Image via Proxy (High Res) with Fallbacks
 const fetchOgImage = async (url: string): Promise<string | null> => {
   try {
-    // Using a CORS proxy to fetch the page content
-    const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-    const data = await response.json();
-    if (!data.contents) return null;
+    const doc = await fetchHtmlUsingProxies(url, '[ImageFetch]');
+    if (!doc) return null;
 
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(data.contents, 'text/html');
+    const getMeta = (qs: string) => doc.querySelector(qs)?.getAttribute('content');
 
-    // Try both twitter:image (often larger) and og:image
-    const twitterImage = doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
-    const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
+    // 1. Meta Tags (High Quality)
+    let imageUrl = getMeta('meta[property="og:image"]') ||
+      getMeta('meta[name="twitter:image"]') ||
+      doc.querySelector('link[rel="image_src"]')?.getAttribute('href');
 
-    return twitterImage || ogImage || null;
+    if (imageUrl) return resolveUrl(imageUrl, url);
+
+    // 2. First Article Image Fallback
+    // Try to find images within common content containers first
+    console.log('[ImageFetch] Meta tags failed, trying first image in body...');
+    const contentImages = doc.querySelectorAll('article img, main img, .content img, #content img, img');
+
+    for (const img of Array.from(contentImages)) {
+      const src = img.getAttribute('src');
+      if (!src) continue;
+
+      // Filter out common icons/logos/tracking pixels
+      if (src.match(/(logo|icon|avatar|spacer|pixel|tracker|doubleclick|facebook|twitter|ads)/i)) continue;
+      if (src.endsWith('.svg') || src.endsWith('.ico')) continue;
+
+      // Check width/height attributes if available to avoid tiny images
+      const w = img.getAttribute('width');
+      const h = img.getAttribute('height');
+      if (w && parseInt(w) < 100) continue;
+      if (h && parseInt(h) < 100) continue;
+
+      const finalUrl = resolveUrl(src, url);
+      if (finalUrl) return finalUrl;
+    }
+
+    return null;
   } catch (error) {
     console.error('Failed to fetch OG image:', error);
     return null;
   }
 };
 
-// Fetch title from URL
-const fetchTitleFromUrl = async (url: string, type: ResourceType): Promise<string | null> => {
-  try {
-    if (type === 'YOUTUBE') {
-      const videoId = getYouTubeVideoId(url);
-      if (!videoId) return null;
+// Fetch YouTube Metadata (Web Scraping / API Fallback)
+const fetchYouTubeData = async (
+  url: string,
+  apiKey?: string
+): Promise<{ title: string | null; description: string | null; thumbnailUrl: string | null; needsApiKey?: boolean }> => {
+  const videoId = getYouTubeVideoId(url);
+  if (!videoId) return { title: null, description: null, thumbnailUrl: null };
 
-      // Use YouTube oEmbed API
-      const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
-      if (!response.ok) return null;
+  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  let title: string | null = null;
+  let description: string | null = null;
 
-      const data = await response.json();
-      return data.title || null;
-    } else {
-      // For regular URLs, try to fetch the title from HTML using proxy
-      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-      const data = await response.json();
-      if (!data.contents) return null;
+  // 1. Try Scraping via Proxy / noembed (No key needed)
+  if (!apiKey) {
+    try {
+      // Try noembed.com first (CORS friendly, fast, reliable for YouTube)
+      const noembedRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+      if (noembedRes.ok) {
+        const noembedData = await noembedRes.json();
+        if (noembedData.title) title = noembedData.title;
+      }
 
-      const match = data.contents.match(/<title>([^<]*)<\/title>/i);
-      return match ? match[1].trim() : null;
+      // If noembed failed, try official oEmbed (might hit CORS)
+      if (!title) {
+        const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+        if (oembedRes.ok) {
+          const oembedData = await oembedRes.json();
+          title = oembedData.title;
+        }
+      }
+
+      // Fetch Description via Scraping (Best effort)
+      const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`);
+      const proxyData = await proxyRes.json();
+
+      if (proxyData.contents) {
+        // Attempt to parse description from meta tags or JSON-LD
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(proxyData.contents, 'text/html');
+
+        // Try meta description
+        const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute('content');
+        if (metaDesc) description = metaDesc;
+
+        // If scrape fails or returns empty/default string, mark for API key fallback
+        if (!description || description.length < 50) {
+          return { title, description: null, thumbnailUrl, needsApiKey: true };
+        }
+      }
+    } catch (e) {
+      console.error("Scraping failed:", e);
+      // Even if scraping fails, if we got a title from noembed, we can return it
+      // But we still need the API key for the description
+      return { title, description: null, thumbnailUrl, needsApiKey: true };
     }
-  } catch (error) {
-    console.error('Failed to fetch title:', error);
-    return null;
   }
+
+  // 2. Use API Key if provided
+  if (apiKey) {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`
+      );
+      const data = await response.json();
+      const item = data.items?.[0];
+      if (item) {
+        title = item.snippet.title;
+        description = item.snippet.description;
+      }
+    } catch (e) {
+      console.error("YouTube API failed:", e);
+    }
+  }
+
+  return { title, description, thumbnailUrl };
 };
 
-// Fetch Page Content via Proxy (start)
-const fetchPageContent = async (url: string): Promise<string> => {
-  try {
-    const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-    const data = await response.json();
-    if (!data.contents) return "";
 
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(data.contents, 'text/html');
+// Fetch title from URL (Generic with Multi-Proxy Fallback)
+const fetchTitleFromUrl = async (url: string, type: ResourceType): Promise<string | null> => {
+  const doc = await fetchHtmlUsingProxies(url, '[TitleFetch]');
+  if (!doc) return null;
 
-    // Remove script and style elements
-    const scripts = doc.querySelectorAll('script, style, noscript, iframe, svg');
-    scripts.forEach(script => script.remove());
+  const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
+    doc.title ||
+    doc.querySelector('h1')?.textContent;
 
-    // Get text content
-    let text = doc.body.innerText || "";
-
-    // Simple cleanup: remove excessive whitespace
-    text = text.replace(/\s+/g, ' ').trim();
-
-    return text;
-  } catch (error) {
-    console.error('Failed to fetch page content:', error);
-    return "";
-  }
+  return title ? title.trim() : null;
 };
 
-export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit, initialData, apiKey, currentUser, onSaveApiKey }) => {
+export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSubmit, initialData, currentUser }) => {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
   const [keyPoints, setKeyPoints] = useState('');
-  const [conclusion, setConclusion] = useState('');
   const [category, setCategory] = useState<Category>(Category.TECH);
   const [resourceType, setResourceType] = useState<ResourceType>('ARTICLE');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analyzingStatus, setAnalyzingStatus] = useState<string>(''); // New status state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingTitle, setIsFetchingTitle] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [isFetchingImage, setIsFetchingImage] = useState(false);
 
-  // API Key State
-  const [localApiKey, setLocalApiKey] = useState('');
+  // YouTube specific
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-  const [isApiKeySaved, setIsApiKeySaved] = useState(false);
+  const [youtubeApiKey, setYoutubeApiKey] = useState('');
+  const [isRetryingWithKey, setIsRetryingWithKey] = useState(false);
 
-  // Sync apiKey prop to local state
+  // Auto-fetch logic
   useEffect(() => {
-    if (apiKey) setLocalApiKey(apiKey);
-  }, [apiKey]);
-
-  const handleSaveKey = () => {
-    onSaveApiKey(localApiKey);
-    setIsApiKeySaved(true);
-    setTimeout(() => setIsApiKeySaved(false), 2000);
-  };
-
-  // Auto-fetch title when URL changes (debounced)
-  useEffect(() => {
-    if (!url || title) return; // Don't fetch if title already exists
+    if (!url) return;
+    if (initialData && url === initialData.url) return; // Don't refetch on edit if URL hasn't changed
 
     const timer = setTimeout(async () => {
-      setIsFetchingTitle(true);
-      const fetchedTitle = await fetchTitleFromUrl(url, resourceType);
-      if (fetchedTitle && !title) { // Only set if title is still empty
-        setTitle(fetchedTitle);
+      // 1. YouTube Specific Logic
+      if (resourceType === 'YOUTUBE') {
+        setIsFetchingTitle(true);
+        setIsFetchingImage(true);
+
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+          // 1. Fetch Title (Robust, No API Key needed)
+          // Try noembed.com first (CORS friendly)
+          const titlePromise = fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${getYouTubeVideoId(url)}`, { signal: controller.signal })
+            .then(res => res.json())
+            .then(data => data.title || null)
+            .catch(() => null)
+            .then(async (noembedTitle) => {
+              if (noembedTitle) return noembedTitle;
+              // Fallback to oEmbed
+              const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${getYouTubeVideoId(url)}&format=json`, { signal: controller.signal });
+              const data = await res.json();
+              return data.title || null;
+            })
+            .catch(() => null);
+
+          // 2. Fetch Description (Best Effort, might fail/CORS)
+          const descPromise = fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, { signal: controller.signal })
+            .then(res => res.json())
+            .then(data => {
+              if (data.contents) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(data.contents, 'text/html');
+                return doc.querySelector('meta[name="description"]')?.getAttribute('content') || null;
+              }
+              return null;
+            })
+            .catch(() => null);
+
+          // Execute in parallel but handle independently
+          const [fetchedTitle, fetchedDesc] = await Promise.all([titlePromise, descPromise]);
+          clearTimeout(timeoutId);
+
+          const videoId = getYouTubeVideoId(url);
+          const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : null;
+
+          // Set Title immediately if found
+          if (fetchedTitle) setTitle(prev => prev || fetchedTitle);
+          if (thumbnailUrl) setImageUrl(thumbnailUrl);
+
+          // Handle Description / API Key Logic
+          if (fetchedDesc) {
+            if (!content) setContent(fetchedDesc);
+            setShowApiKeyInput(false);
+          } else {
+            // If description is missing, we need API key ONLY for description
+            // But we don't want to block the title.
+            // We show popup only if we really need description and user hasn't skipped it.
+            // Logic: If title found but no description -> Show popup to offer better data, 
+            // but user can see title is already there.
+            setShowApiKeyInput(true);
+          }
+
+        } catch (error) {
+          console.error("YouTube fetch timed out or failed:", error);
+          // Even on timeout, IF we got title somehow (unlikely if race failed) or just show popup
+          setShowApiKeyInput(true);
+        }
+
+        setIsFetchingTitle(false);
+        setIsFetchingImage(false);
+        return;
       }
-      setIsFetchingTitle(false);
-    }, 1000); // 1 second debounce
+
+      // 2. Generic Article OR Book Logic
+      if (resourceType === 'ARTICLE' || resourceType === 'BOOK') {
+        setIsFetchingTitle(true);
+        const fetchedTitle = await fetchTitleFromUrl(url, resourceType);
+        if (fetchedTitle) setTitle(prev => prev || fetchedTitle);
+        setIsFetchingTitle(false);
+
+        // For Articles, fetch OG image immediately
+        // For Books, we rely on the separate title-based cover fetcher (below)
+        if (resourceType === 'ARTICLE') {
+          setIsFetchingImage(true);
+          const fetchedImage = await fetchOgImage(url);
+          if (fetchedImage && !imageUrl) setImageUrl(fetchedImage);
+          setIsFetchingImage(false);
+        }
+        return;
+      }
+
+      // 3. Book Logic (relies on Title, handled separately or manually)
+
+    }, 500); // Reduced delay to 500ms for faster feedback
 
     return () => clearTimeout(timer);
-  }, [url, resourceType, title]); // Added title to dependencies to prevent re-fetching if title is manually set
+  }, [url, resourceType]); // Dependency trimmed to avoid loops
 
-  // Auto-fetch Image when URL (for Article/Video) or Title (for Book) changes
+  // Separate effect for Book cover fetching on Title change
   useEffect(() => {
-    if (imageUrl) return; // Don't fetch if image already exists/is set (prevents overwriting manual edits)
-    if (resourceType === 'BOOK' && !title) return;
-    if (resourceType !== 'BOOK' && !url) return;
-
+    if (resourceType !== 'BOOK' || !title) return;
     const timer = setTimeout(async () => {
       setIsFetchingImage(true);
-      let fetchedImage: string | null = null;
-
-      if (resourceType === 'BOOK' && title) {
-        fetchedImage = await fetchBookCover(title);
-      } else if (resourceType !== 'BOOK' && url) {
-        fetchedImage = await fetchOgImage(url);
-      }
-
-      if (fetchedImage) {
-        setImageUrl(fetchedImage);
-      }
+      const cover = await fetchBookCover(title);
+      if (cover) setImageUrl(cover);
       setIsFetchingImage(false);
-    }, 1500); // 1.5 second debounce to wait for user to finish typing
-
+    }, 1500);
     return () => clearTimeout(timer);
-  }, [url, title, resourceType, imageUrl]);
+  }, [title, resourceType]);
+
+
+  // Handler for Manual Retry with API Key
+  const handleRetryWithApiKey = async () => {
+    if (!youtubeApiKey) return;
+    setIsRetryingWithKey(true);
+
+    const { title: ytTitle, description: ytDesc, thumbnailUrl } = await fetchYouTubeData(url, youtubeApiKey);
+
+    if (ytTitle) setTitle(ytTitle);
+    if (ytDesc) {
+      setContent(ytDesc);
+      setShowApiKeyInput(false); // Success, hide popup
+    } else {
+      alert("無法透過 API 抓取內容，請確認 Key 是否正確或手動輸入。");
+    }
+
+    if (thumbnailUrl) setImageUrl(thumbnailUrl);
+
+    setIsRetryingWithKey(false);
+  };
 
 
   // Populate form with initialData when modal opens
@@ -231,133 +423,53 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       if (initialData) {
         setTitle(initialData.title);
         setUrl(initialData.url);
-        setDescription(initialData.summary);
         setCategory(initialData.category);
         setResourceType(initialData.type);
-        setImageUrl(initialData.imageUrl || ''); // Set initial image
+        setImageUrl(initialData.imageUrl || '');
         setContent(initialData.content || '');
         setKeyPoints(initialData.keyPoints || '');
-        setConclusion(initialData.conclusion || '');
       } else {
         // Reset form for new submission
         setTitle('');
         setUrl('');
-        setDescription('');
         setImageUrl('');
         setCategory(Category.TECH);
         setResourceType('ARTICLE');
         setContent('');
         setKeyPoints('');
-        setConclusion('');
+        setShowApiKeyInput(false);
+        setYoutubeApiKey('');
       }
     }
   }, [isOpen, initialData]);
-
-  const handleAnalyze = async () => {
-    if (!title && !description && !url) return;
-    setIsAnalyzing(true);
-    setAnalyzingStatus('正在讀取網頁內容...');
-
-    try {
-      // 1. Fetch Page Content first
-      let pageContent = "";
-      if (url && resourceType === 'ARTICLE') {
-        pageContent = await fetchPageContent(url);
-      }
-
-      setAnalyzingStatus('AI 正在分析與生成內容...');
-
-      // 2. Pass content to Gemini
-      // Check for API key first
-      if (!apiKey) {
-        alert("未設定 API Key，請聯繫 Jason 管理員");
-        setIsAnalyzing(false);
-        setAnalyzingStatus('');
-        return;
-      }
-
-      const result = await analyzeArticleContent(apiKey || '', title, description, resourceType, url, pageContent);
-
-      // Update fields with AI suggestions
-      setDescription(result.summary);
-      setCategory(result.category);
-      if (result.content) setContent(result.content);
-      if (result.keyPoints) setKeyPoints(result.keyPoints);
-      if (result.conclusion) setConclusion(result.conclusion);
-    } catch (e) {
-      console.error(e);
-      alert('AI 分析暫時無法使用，請手動輸入');
-    } finally {
-      setIsAnalyzing(false);
-      setAnalyzingStatus('');
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      let finalDescription = description;
-      let finalContent = content;
-      let finalKeyPoints = keyPoints;
-      let finalConclusion = conclusion;
-      let finalCategory = category;
-
-      // 1. Auto-fill content if missing
-      if (!description || !content || !keyPoints || !conclusion) {
-        setIsAnalyzing(true);
-        try {
-          // Fetch content for auto-fill if needed
-          let pageContent = "";
-          if (url && resourceType === 'ARTICLE') {
-            // We can try to fetch it, but to save time/bandwidth maybe we skip or rely on handleAnalyze? 
-            // Ideally the user uses the button. But if they click submit directly...
-            // Let's do a quick fetch
-            try {
-              pageContent = await fetchPageContent(url);
-            } catch (e) { }
-          }
-
-          const result = await analyzeArticleContent(apiKey || '', title, description || title, resourceType, url, pageContent);
-          if (!description) finalDescription = result.summary;
-          if (!content) finalContent = result.content || '';
-          if (!keyPoints) finalKeyPoints = result.keyPoints || '';
-          if (!conclusion) finalConclusion = result.conclusion || '';
-          // Only update category if user hasn't manually selected one (or if it's default)
-          if (category === Category.TECH) finalCategory = result.category;
-        } catch (error) {
-          console.error("Auto-fill failed:", error);
-        } finally {
-          setIsAnalyzing(false);
-        }
-      }
-
-      // 2. Use the state imageUrl (fetched or manually entered)
-      // If it's still empty, try one last fetch? No, the user saw the preview. 
-      // If they explicitly cleared it, it sends undefined/empty.
-      // But if they just pasted URL and hit enter fast, debounce might not have fired.
-      // Let's rely on the state. If they want an image, they'll see the preview.
+      // Auto-generate summary from content if available, else use title
+      const generatedSummary = content
+        ? content.slice(0, 150) + (content.length > 150 ? '...' : '')
+        : title;
 
       onSubmit({
         title,
-        summary: finalDescription,
-        category: finalCategory,
+        summary: generatedSummary, // Use generated summary
+        category,
         url,
         type: resourceType,
-        content: finalContent || undefined,
-        keyPoints: finalKeyPoints || undefined,
-        conclusion: finalConclusion || undefined,
+        content: content || undefined,
+        keyPoints: keyPoints || undefined,
+        conclusion: undefined, // Removed
         imageUrl: imageUrl || undefined
       });
 
       // Reset form
       setUrl('');
       setTitle('');
-      setDescription('');
       setContent('');
       setKeyPoints('');
-      setConclusion('');
       setImageUrl('');
       setCategory(Category.TECH);
       setResourceType('ARTICLE');
@@ -380,6 +492,61 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       />
       <div className="relative bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-[fadeIn_0.3s_ease-out] max-h-[90vh] overflow-y-auto no-scrollbar">
 
+        {/* API Key Modal Overlay */}
+        {showApiKeyInput && (
+          <div className="absolute inset-0 z-[110] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-8 animate-[fadeIn_0.2s_ease-out]">
+            {/* Back Button */}
+            <button
+              onClick={() => setShowApiKeyInput(false)}
+              className="absolute top-4 left-4 p-2 text-gray-400 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <ArrowLeft size={24} />
+            </button>
+
+            <div className="w-full max-w-sm space-y-4 text-center">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Youtube size={24} />
+              </div>
+              <h4 className="text-xl font-bold text-gray-900">無法自動抓取影片說明</h4>
+              <p className="text-sm text-gray-500">
+                由於 YouTube 的限制，我們無法直接抓取詳細說明。您可以輸入個人的 YouTube Data API Key 來嘗試獲取完整資訊。
+              </p>
+
+              <div className="text-left space-y-1.5 pt-2">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">YouTube Data API Key</label>
+                <input
+                  type="text"
+                  value={youtubeApiKey}
+                  onChange={(e) => setYoutubeApiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none text-sm"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowApiKeyInput(false)}
+                  className="flex-1"
+                >
+                  略過，手動輸入
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleRetryWithApiKey}
+                  isLoading={isRetryingWithKey}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white border-transparent"
+                >
+                  重試抓取
+                </Button>
+              </div>
+              <p className="text-xs text-gray-400 mt-4">
+                您的 Key 僅會用於此次抓取，不會被儲存。
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
           <h3 className="text-xl font-semibold text-gray-900">{initialData ? '編輯內容' : '分享新知'}</h3>
@@ -394,9 +561,6 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
 
-          {/* API Key Section for Admin */}
-
-
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 block">資源類型</label>
             <div className="flex p-1 bg-gray-100 rounded-xl">
@@ -407,7 +571,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
                   }`}
               >
                 <FileText size={16} />
-                文章
+                Article
               </button>
               <button
                 type="button"
@@ -416,16 +580,19 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
                   }`}
               >
                 <Youtube size={16} />
-                影片
+                Video
               </button>
               <button
                 type="button"
-                onClick={() => setResourceType('BOOK')}
+                onClick={() => {
+                  setResourceType('BOOK');
+                  setCategory(Category.BOOKS);
+                }}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${resourceType === 'BOOK' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-900'
                   }`}
               >
                 <BookOpen size={16} />
-                書籍
+                Book
               </button>
             </div>
           </div>
@@ -463,70 +630,51 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
             </div>
           </div>
 
-          {/* Image URL Input & Preview */}
-          <div className="flex gap-4 items-start">
-            <div className="flex-1 space-y-1.5">
+          {/* Image Preview (Auto-fetched only) */}
+          {(imageUrl || isFetchingImage) && resourceType !== 'YOUTUBE' && (
+            <div className="space-y-1.5">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
                 <div className="flex items-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                  封面圖片連結
+                  封面預覽
                 </div>
                 {isFetchingImage && <Loader2 size={14} className="animate-spin text-blue-500" />}
               </label>
-              <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://... (自動抓取或手動輸入)"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm"
-              />
+
+              {imageUrl && (
+                <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-gray-50 max-h-[200px]">
+                  <img src={imageUrl} alt="Cover Preview" className="w-full h-full object-cover" />
+                </div>
+              )}
             </div>
-            {imageUrl && (
-              <div className="w-20 h-20 shrink-0 rounded-xl border border-gray-100 overflow-hidden bg-gray-50 mt-6 relative group">
-                <img src={imageUrl} alt="Cover Preview" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors" />
+          )}
+
+          {/* YouTube Thumbnail Preview (Read-only) */}
+          {resourceType === 'YOUTUBE' && imageUrl && (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-gray-50">
+              <img src={imageUrl} alt="Video Thumbnail" className="w-full h-full object-cover" />
+              <div className="absolute bottom-3 right-3 px-2 py-1 bg-black/70 text-white text-xs font-bold rounded">
+                封面預覽
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="space-y-1.5 relative">
             <div className="flex justify-between items-center">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <FileText size={14} />
-                讀後心得
-              </label>
-              <button
-                type="button"
-                onClick={handleAnalyze}
-                disabled={isAnalyzing || (!title && !description)}
-                className="text-xs flex items-center gap-1 text-purple-600 hover:text-purple-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Sparkles size={12} />
-                AI 自動生成內容
-              </button>
+              <label className="text-sm font-medium text-gray-700 block">文章內容</label>
+              {resourceType === 'YOUTUBE' && (
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyInput(true)}
+                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium transition-colors"
+                >
+                  <Key size={12} />
+                  輸入 API Key 重新抓取
+                </button>
+              )}
             </div>
             <textarea
               required
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="分享這篇文章、影片或書籍帶給你的啟發..."
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm resize-none"
-            />
-            {isAnalyzing && (
-              <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] rounded-xl flex items-center justify-center z-10">
-                <div className="flex flex-col items-center gap-2 text-purple-600">
-                  <Sparkles className="animate-pulse" size={24} />
-                  <span className="text-xs font-semibold">{analyzingStatus || "Gemini 思考中..."}</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* New Fields */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700 block">文章內容（選填）</label>
-            <textarea
               rows={10}
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -536,23 +684,12 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700 block">關鍵觀點與分析（選填）</label>
+            <label className="text-sm font-medium text-gray-700 block">關鍵觀點與分析</label>
             <textarea
               rows={6}
               value={keyPoints}
               onChange={(e) => setKeyPoints(e.target.value)}
               placeholder="列舉文章的關鍵觀點、深入分析或你的思考..."
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm resize-none"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700 block">結語（選填）</label>
-            <textarea
-              rows={4}
-              value={conclusion}
-              onChange={(e) => setConclusion(e.target.value)}
-              placeholder="總結這篇內容的啟發、行動建議或個人反思..."
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm resize-none"
             />
           </div>

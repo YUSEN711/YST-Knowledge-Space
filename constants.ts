@@ -31,7 +31,7 @@ export const INITIAL_ARTICLES: Article[] = [
     summary: '如何運用負空間與排版層次，創造出既美觀又實用的使用者介面。',
     url: '#',
     imageUrl: 'https://picsum.photos/800/600?random=2',
-    category: Category.DESIGN,
+    category: Category.STYLE,
     type: 'ARTICLE',
     date: '2023-10-22',
     author: 'Design Lead'
@@ -53,7 +53,7 @@ export const INITIAL_ARTICLES: Article[] = [
     summary: '這本書深入探討了習慣養成的心理學機制，讀後讓我重新審視每日的微小決定如何影響長期目標。',
     url: '#',
     imageUrl: 'https://picsum.photos/800/600?random=4',
-    category: Category.LIFESTYLE,
+    category: Category.BOOKS,
     type: 'BOOK',
     date: '2023-10-18',
     author: 'Book Lover'
@@ -75,7 +75,7 @@ export const INITIAL_ARTICLES: Article[] = [
     summary: '從化學角度解析萃取過程，讓每一杯咖啡都能保持最佳風味。',
     url: '#',
     imageUrl: 'https://picsum.photos/800/600?random=6',
-    category: Category.LIFESTYLE,
+    category: Category.STYLE,
     type: 'ARTICLE',
     date: '2023-10-12',
     author: 'Barista Joe'
@@ -83,12 +83,16 @@ export const INITIAL_ARTICLES: Article[] = [
 ];
 
 export const CATEGORY_COLORS: Record<Category, string> = {
-  [Category.TECH]: 'bg-blue-50 text-blue-600',
-  [Category.DESIGN]: 'bg-purple-50 text-purple-600',
   [Category.BUSINESS]: 'bg-slate-50 text-slate-600',
-  [Category.SCIENCE]: 'bg-green-50 text-green-600',
-  [Category.LIFESTYLE]: 'bg-orange-50 text-orange-600',
+  [Category.MARKETS]: 'bg-emerald-50 text-emerald-600',
+  [Category.HEALTH]: 'bg-rose-50 text-rose-600',
+  [Category.ENTERTAINMENT]: 'bg-purple-50 text-purple-600',
+  [Category.TECH]: 'bg-blue-50 text-blue-600',
+  [Category.STYLE]: 'bg-pink-50 text-pink-600',
+  [Category.TRAVEL]: 'bg-orange-50 text-orange-600',
+  [Category.SPORTS]: 'bg-green-50 text-green-600',
+  [Category.SCIENCE]: 'bg-indigo-50 text-indigo-600',
+  [Category.CLIMATE]: 'bg-teal-50 text-teal-600',
+  [Category.WEATHER]: 'bg-cyan-50 text-cyan-600',
+  [Category.BOOKS]: 'bg-amber-50 text-amber-900',
 };
-
-// Default API Key (User requested hardcoded default)
-export const DEFAULT_API_KEY = 'AIzaSyA56Mo5P7QweyH_dbjMDLao7tnoi5ydM8M';

@@ -272,20 +272,6 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
           {/* Main Layout */}
           <div className="max-w-3xl mx-auto">
 
-            {/* User's Summary / Reflection Card */}
-            <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-100 p-10 md:p-12 rounded-[2rem] mb-16 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-5">
-                <SparklesIcon size={160} />
-              </div>
-              <h3 className="text-sm font-bold text-purple-600 uppercase tracking-widest mb-6 flex items-center gap-3">
-                <span className="w-10 h-[2px] bg-purple-600"></span>
-                讀後心得
-              </h3>
-              <p className="text-xl md:text-2xl font-medium text-gray-900 leading-relaxed relative z-10">
-                {article.summary}
-              </p>
-            </div>
-
             {/* Article Content */}
             {article.content && (
               <div className="prose prose-lg max-w-none mb-16">
@@ -306,19 +292,6 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
                 <div className="text-gray-700 leading-relaxed whitespace-pre-wrap text-lg">
                   {article.keyPoints}
                 </div>
-              </div>
-            )}
-
-            {/* Conclusion */}
-            {article.conclusion && (
-              <div className="bg-gradient-to-br from-purple-50/80 to-pink-50/80 border border-purple-100 p-10 md:p-12 rounded-[2rem] mb-16 shadow-sm">
-                <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                  <span className="text-purple-600">✨</span>
-                  結語
-                </h3>
-                <p className="text-gray-700 leading-relaxed text-lg whitespace-pre-wrap">
-                  {article.conclusion}
-                </p>
               </div>
             )}
 

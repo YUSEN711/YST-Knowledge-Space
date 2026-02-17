@@ -8,18 +8,30 @@ import { TrashModal } from './components/TrashModal';
 import { AuthModal } from './components/AuthModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ArticleDetail } from './components/ArticleDetail';
-import { INITIAL_ARTICLES, DEFAULT_API_KEY } from './constants';
+import { INITIAL_ARTICLES } from './constants';
 import { Article, Category, ResourceType, User } from './types';
 import { Button } from './components/Button';
-import { analyzeArticleContent } from './services/geminiService';
 
+// Configuration: Map Top Level Categories to Sub Categories
 // Configuration: Map Top Level Categories to Sub Categories
 const CATEGORY_MAPPING: Record<TopLevelCategory, Category[]> = {
   LATEST: Object.values(Category), // Shows everything
-  TECH: [Category.TECH, Category.SCIENCE],
-  DESIGN: [Category.DESIGN, Category.LIFESTYLE],
-  BUSINESS: [Category.BUSINESS],
-  BOOKS: Object.values(Category) // Books can be from any category
+  BUSINESS: [
+    Category.BUSINESS,
+    Category.MARKETS,
+    Category.ENTERTAINMENT,
+    Category.STYLE,
+    Category.TRAVEL,
+    Category.SPORTS
+  ],
+  TECH: [
+    Category.TECH,
+    Category.SCIENCE,
+    Category.CLIMATE,
+    Category.WEATHER,
+    Category.HEALTH
+  ],
+  BOOKS: [Category.BOOKS] // Only show books in Books tab
 };
 
 // Helper to extract YouTube Thumbnail
@@ -31,12 +43,42 @@ const getYoutubeThumbnail = (url: string): string | null => {
     : null;
 };
 
+// Helper to normalize legacy Chinese categories to English Enums
+const normalizeCategory = (cat: string): Category => {
+  const mapping: Record<string, Category> = {
+    '商業趨勢': Category.BUSINESS,
+    '市場動態': Category.MARKETS,
+    '健康醫學': Category.HEALTH,
+    '影視娛樂': Category.ENTERTAINMENT,
+    '科技創新': Category.TECH,
+    '時尚風格': Category.STYLE,
+    '旅行': Category.TRAVEL,
+    '體育': Category.SPORTS,
+    '科學探索': Category.SCIENCE,
+    '自然氣候': Category.CLIMATE,
+    '天氣': Category.WEATHER,
+    '書籍': Category.BOOKS
+  };
+  // If it's already a valid enum value (English), return it. Otherwise map it.
+  return (Object.values(Category).includes(cat as Category))
+    ? cat as Category
+    : mapping[cat] || cat as Category;
+};
+
 function App() {
   // Initialize Articles from LocalStorage or fall back to constants
   const [articles, setArticles] = useState<Article[]>(() => {
     try {
       const saved = localStorage.getItem('yst_articles');
-      return saved ? JSON.parse(saved) : INITIAL_ARTICLES;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Normalize categories for all legacy data
+        return parsed.map((a: Article) => ({
+          ...a,
+          category: normalizeCategory(a.category)
+        }));
+      }
+      return INITIAL_ARTICLES;
     } catch {
       return INITIAL_ARTICLES;
     }
@@ -67,15 +109,6 @@ function App() {
   const [isSavedModalOpen, setIsSavedModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
-
-  // API Key State
-  const [apiKey, setApiKey] = useState<string>(() => {
-    try {
-      return localStorage.getItem('gemini_api_key') || DEFAULT_API_KEY;
-    } catch {
-      return DEFAULT_API_KEY;
-    }
-  });
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
@@ -124,12 +157,6 @@ function App() {
     if (selectedArticle) setSelectedArticle(null);
   };
 
-  // Persist API Key to LocalStorage
-  const handleSaveApiKey = (key: string) => {
-    setApiKey(key);
-    localStorage.setItem('gemini_api_key', key);
-  };
-
   // Filter Articles based on Top Level & Sub Category
   const filteredArticles = useMemo(() => {
     let filtered = articles;
@@ -140,11 +167,11 @@ function App() {
       if (currentTopLevel === 'BOOKS') {
         filtered = filtered.filter(a => a.type === 'BOOK');
       } else {
+        // For other categories (Tech, Business, etc.), exclude Books
         filtered = filtered.filter(a => allowedCategories.includes(a.category) && a.type !== 'BOOK');
       }
     } else {
-      // LATEST shows everything? Or exclude Books? 
-      // Let's keep it simple: LATEST shows everything.
+      // LATEST shows everything including books
     }
 
     // 2. Filter by Sub Category (if not ALL)
@@ -164,6 +191,9 @@ function App() {
     // if (currentTopLevel === 'LATEST') return filteredArticles.slice(1);
 
     // Current design: Hero is always the first one of the filtered list?
+    // Exception: For BOOKS, we hide the hero section, so we should show ALL items in the grid.
+    if (currentTopLevel === 'BOOKS') return filteredArticles;
+
     return filteredArticles.slice(1);
   }, [filteredArticles, currentTopLevel]);
 
@@ -176,6 +206,7 @@ function App() {
   const handleArticleClick = (article: Article) => {
     setSelectedArticle(article);
     window.scrollTo(0, 0);
+    markAsRead(article.id);
   };
 
   const handleAddArticle = (newArticle: Article) => {
@@ -213,6 +244,11 @@ function App() {
     setDeletedArticles(prev => prev.filter(a => a.id !== id));
   };
 
+  const handleEmptyTrash = () => {
+    if (window.confirm('確定要清空垃圾桶嗎？此動作無法復原。')) {
+      setDeletedArticles([]);
+    }
+  };
 
   const toggleSaveArticle = (id: string) => {
     if (!currentUser) {
@@ -241,11 +277,25 @@ function App() {
 
   const markAsRead = (id: string) => {
     if (!currentUser) return;
-    // Similar to save, update read history
-    // For now, simpler implementation or skip if not strictly required by task
+
+    setUsersDb(prev => {
+      const user = prev[currentUser.username];
+      const read = user.readArticleIds || [];
+      if (read.includes(id)) return prev; // Already read
+
+      const newRead = [...read, id];
+      const updatedUser = { ...user, readArticleIds: newRead };
+
+      // Update current user session
+      setCurrentUser(updatedUser);
+      localStorage.setItem('yst_user', JSON.stringify(updatedUser)); // Update session immediately
+      return { ...prev, [currentUser.username]: updatedUser };
+    });
   };
 
-  const isArticleRead = (id: string) => false; // Placeholder for now
+  const isArticleRead = (id: string) => {
+    return currentUser?.readArticleIds?.includes(id) || false;
+  };
 
   const handleLogin = (username: string, pass?: string) => {
     // Simple mock login
@@ -258,10 +308,17 @@ function App() {
         username: username,
         avatar: `https://ui-avatars.com/api/?name=${username}&background=random`,
         role: username.toLowerCase() === 'jason' ? 'ADMIN' : 'USER',
-        savedArticles: []
+        savedArticles: [],
+        readArticleIds: []
       };
       // For new users, just save them
       setUsersDb(prev => ({ ...prev, [username]: user }));
+    } else {
+      // Ensure readArticleIds exists for existing users (migration)
+      if (!user.readArticleIds) {
+        user = { ...user, readArticleIds: [] };
+        setUsersDb(prev => ({ ...prev, [username]: user }));
+      }
     }
 
     // Check password (only for Jason/Admin)
@@ -292,7 +349,7 @@ function App() {
   }, [articles, currentUser]);
 
   return (
-    <div className="min-h-screen pb-20 bg-[#f5f5f7]">
+    <div className="min-h-screen flex flex-col bg-[#f5f5f7]">
       <Header
         onOpenSubmit={() => setIsModalOpen(true)}
         onOpenSaved={() => setIsSavedModalOpen(true)}
@@ -323,50 +380,52 @@ function App() {
         />
       ) : (
         <>
-          {/* Sub-Category Filter Bar - Full Width */}
-          <div
-            className={`sticky top-20 z-40 w-full overflow-x-auto no-scrollbar transition-all duration-300
-              ${isScrolled ? 'py-1 md:py-2' : 'py-1 md:py-2'} 
-              ${isScrolled
-                ? 'bg-[#f5f5f7]/95 backdrop-blur-sm shadow-sm'
-                : 'bg-[#f5f5f7]'
-              }
-              [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-12px),transparent)]
-              md:[mask-image:linear-gradient(to_right,transparent,black_30px,black_calc(100%-30px),transparent)]
-            `}
-          >
-            <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 flex gap-2 md:gap-3 min-w-max">
-              <button
-                onClick={() => setCurrentSubCategory('ALL')}
-                className={`
-                  ${isScrolled ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-sm'}
-                  md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === 'ALL'
-                    ? 'bg-black text-white border-black shadow-md'
-                    : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
-                  }`}
-              >
-                全部
-              </button>
-              {currentSubCategoriesToDisplay.map(cat => (
+          {/* Sub-Category Filter Bar - Full Width - Hidden for BOOKS */}
+          {currentTopLevel !== 'BOOKS' && (
+            <div
+              className={`sticky top-20 z-40 w-full overflow-x-auto no-scrollbar transition-all duration-300
+                ${isScrolled ? 'py-1 md:py-2' : 'py-1 md:py-2'} 
+                ${isScrolled
+                  ? 'bg-[#f5f5f7]/95 backdrop-blur-sm shadow-sm'
+                  : 'bg-[#f5f5f7]'
+                }
+                [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-12px),transparent)]
+                md:[mask-image:linear-gradient(to_right,transparent,black_30px,black_calc(100%-30px),transparent)]
+              `}
+            >
+              <div className="max-w-[2100px] mx-auto px-4 sm:px-8 lg:px-12 flex gap-2 md:gap-3 min-w-max justify-center">
                 <button
-                  key={cat}
-                  onClick={() => setCurrentSubCategory(cat)}
+                  onClick={() => setCurrentSubCategory('ALL')}
                   className={`
                     ${isScrolled ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-sm'}
-                    md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === cat
+                    md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === 'ALL'
                       ? 'bg-black text-white border-black shadow-md'
                       : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
                     }`}
                 >
-                  {cat}
+                  All
                 </button>
-              ))}
+                {currentSubCategoriesToDisplay.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setCurrentSubCategory(cat)}
+                    className={`
+                      ${isScrolled ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-sm'}
+                      md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === cat
+                        ? 'bg-black text-white border-black shadow-md'
+                        : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
+                      }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          <main className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 pt-6 space-y-16">
-            {/* Featured Hero Section */}
-            {heroArticle && (
+          <main className="flex-1 max-w-[2100px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-6 space-y-16">
+            {/* Featured Hero Section - Hide on BOOKS tab */}
+            {heroArticle && currentTopLevel !== 'BOOKS' && (
               <section className="animate-[fadeIn_0.5s_ease-out]">
                 <ArticleCard
                   article={heroArticle}
@@ -380,10 +439,13 @@ function App() {
             {/* Unified Content Section */}
             {listArticles.length > 0 ? (
               <Section
-                title="最新發布"
+                title="Latest Releases"
                 icon={<LayoutGrid size={28} className="text-gray-700" />}
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-8 lg:gap-10 animate-[fadeIn_0.7s_ease-out]">
+                <div className={`grid gap-8 md:gap-8 lg:gap-10 animate-[fadeIn_0.7s_ease-out] ${currentTopLevel === 'BOOKS'
+                  ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
+                  : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                  }`}>
                   {listArticles.map(article => (
                     <ArticleCard
                       key={article.id}
@@ -399,15 +461,16 @@ function App() {
                 <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-6">
                   <ArrowLeft size={32} className="text-gray-400" />
                 </div>
-                <p className="text-gray-500 font-medium text-lg">此分類暫無內容</p>
+                <p className="text-gray-500 font-medium text-lg">No content in this category</p>
                 <Button variant="ghost" size="lg" onClick={() => setCurrentSubCategory('ALL')} className="mt-6">
-                  查看所有內容
+                  View all content
                 </Button>
               </div>
             ) : null}
           </main>
         </>
-      )}
+      )
+      }
 
       <SubmitModal
         isOpen={isModalOpen}
@@ -417,9 +480,7 @@ function App() {
         }}
         onSubmit={editingArticle ? handleUpdateArticle : handleAddArticle}
         initialData={editingArticle}
-        apiKey={apiKey}
         currentUser={currentUser}
-        onSaveApiKey={handleSaveApiKey}
       />
 
       <SavedModal
@@ -437,14 +498,13 @@ function App() {
         onClose={() => setIsTrashModalOpen(false)}
         deletedArticles={deletedArticles}
         onRestore={handleRestoreArticle}
+        onEmptyTrash={handleEmptyTrash}
         onPermanentDelete={handlePermanentDelete}
       />
 
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        onSave={handleSaveApiKey}
-        currentApiKey={apiKey}
       />
 
       <AuthModal
@@ -453,14 +513,16 @@ function App() {
         onLogin={handleLogin}
       />
 
-      {!selectedArticle && (
-        <footer className="mt-32 border-t border-gray-200 bg-white py-16">
-          <div className="max-w-7xl mx-auto px-4 text-center text-gray-400 text-base">
-            <p>&copy; 2026 YST Knowledge Space. All rights reserved.</p>
-          </div>
-        </footer>
-      )}
-    </div>
+      {
+        !selectedArticle && (
+          <footer className="mt-auto border-t border-gray-200 bg-white py-12">
+            <div className="max-w-7xl mx-auto px-4 text-center text-gray-400 text-base">
+              <p>&copy; 2026 YST Knowledge Space. All rights reserved.</p>
+            </div>
+          </footer>
+        )
+      }
+    </div >
   );
 }
 

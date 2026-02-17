@@ -3,7 +3,7 @@ import { Plus, Bookmark, Menu, X, LogIn, Trash2, LogOut } from 'lucide-react';
 import { Button } from './Button';
 import { User } from '../types';
 
-export type TopLevelCategory = 'LATEST' | 'TECH' | 'DESIGN' | 'BUSINESS' | 'BOOKS';
+export type TopLevelCategory = 'LATEST' | 'BUSINESS' | 'TECH' | 'BOOKS';
 
 interface HeaderProps {
   onOpenSubmit: () => void;
@@ -32,11 +32,10 @@ export const Header: React.FC<HeaderProps> = ({
   const isSuperAdmin = user?.name === 'Jason';
 
   const navItems: { id: TopLevelCategory; label: string }[] = [
-    { id: 'LATEST', label: '最新' },
-    { id: 'TECH', label: '科技' },
-    { id: 'DESIGN', label: '生活' },
-    { id: 'BUSINESS', label: '商業' },
-    { id: 'BOOKS', label: '閱讀書籍' },
+    { id: 'LATEST', label: 'Latest' },
+    { id: 'TECH', label: 'Tech' },
+    { id: 'BUSINESS', label: 'Business' },
+    { id: 'BOOKS', label: 'Books' },
   ];
 
   const handleMobileNavClick = (id: TopLevelCategory) => {
@@ -61,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-gray-100 transition-all duration-300">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12">
+      <div className="max-w-[2100px] mx-auto px-4 sm:px-8 lg:px-12">
         <div className="flex justify-between items-center h-20">
           {/* Logo */}
           <div

@@ -1,10 +1,17 @@
 
 export enum Category {
-  TECH = '科技創新',
-  DESIGN = '設計美學',
-  BUSINESS = '商業趨勢',
-  SCIENCE = '科學探索',
-  LIFESTYLE = '生活風格'
+  BUSINESS = 'Business',
+  MARKETS = 'Markets',
+  HEALTH = 'Health',
+  ENTERTAINMENT = 'Entertainment',
+  TECH = 'Tech',
+  STYLE = 'Style',
+  TRAVEL = 'Travel',
+  SPORTS = 'Sports',
+  SCIENCE = 'Science',
+  CLIMATE = 'Climate',
+  WEATHER = 'Weather',
+  BOOKS = 'Books'
 }
 
 export type ResourceType = 'ARTICLE' | 'YOUTUBE' | 'BOOK';
@@ -25,14 +32,7 @@ export interface Article {
   conclusion?: string;
 }
 
-export interface AIAnalysisResult {
-  summary: string;
-  category: Category;
-  tags: string[];
-  content?: string;
-  keyPoints?: string;
-  conclusion?: string;
-}
+
 
 export interface User {
   id: string;

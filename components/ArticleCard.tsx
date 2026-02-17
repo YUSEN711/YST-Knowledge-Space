@@ -22,11 +22,12 @@ const TypeIcon = ({ type, className }: { type: string, className?: string }) => 
 };
 
 export const ArticleCard: React.FC<ArticleCardProps> = ({ article, featured = false, onClick, isRead = false }) => {
+  const [imageError, setImageError] = React.useState(false);
+
   if (featured) {
     return (
       <div
         onClick={onClick}
-        style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
         className="group relative block w-full aspect-[4/3] md:aspect-[2.5/1] overflow-hidden rounded-[2rem] shadow-soft hover:shadow-hover transition-all duration-500 transform hover:scale-[1.01] cursor-pointer isolate z-0"
       >
         <img
@@ -82,11 +83,18 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({ article, featured = fa
         className="group relative flex flex-col cursor-pointer"
       >
         <div className="relative w-full aspect-[2/3] rounded-[1rem] overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 bg-gray-200">
-          <img
-            src={article.imageUrl}
-            alt={article.title}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          />
+          {(imageError || !article.imageUrl) ? (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-amber-50 text-amber-300 p-6">
+              <BookOpen size={48} />
+            </div>
+          ) : (
+            <img
+              src={article.imageUrl}
+              alt={article.title}
+              onError={() => setImageError(true)}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+          )}
           {/* Read Status Badge */}
           {isRead && (
             <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-md text-white/90 text-[10px] font-medium rounded-md border border-white/10">
@@ -110,7 +118,6 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({ article, featured = fa
   return (
     <div
       onClick={onClick}
-      style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
       className="group flex flex-col bg-white rounded-2xl md:rounded-[2rem] overflow-hidden shadow-soft hover:shadow-hover transition-all duration-300 transform hover:-translate-y-1 h-full cursor-pointer border border-gray-100 isolate z-0"
     >
       {/* Aspect Ratio */}
