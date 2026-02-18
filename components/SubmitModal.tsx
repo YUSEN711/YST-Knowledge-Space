@@ -549,7 +549,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <h3 className="text-xl font-semibold text-gray-900">{initialData ? '編輯內容' : '分享新知'}</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{initialData ? '編輯內容' : '分享新知'}</h3>
           <button
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"

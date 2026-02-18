@@ -233,7 +233,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
               </span>
             </div>
 
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-[1.15] tracking-tight max-w-4xl mx-auto">
+            <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold text-gray-900 leading-[1.15] tracking-tight max-w-4xl mx-auto">
               {article.title}
             </h1>
 
@@ -275,7 +275,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
             {/* Article Content */}
             {article.content && (
               <div className="prose prose-lg max-w-none mb-16">
-                <h3 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gray-200">文章內容</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gray-200">文章內容</h3>
                 <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {article.content}
                 </div>
@@ -285,7 +285,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
             {/* Key Points & Analysis */}
             {article.keyPoints && (
               <div className="bg-blue-50/50 border-l-4 border-blue-500 p-8 md:p-10 rounded-2xl mb-16">
-                <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                   <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                   關鍵觀點與分析
                 </h3>
