@@ -140,6 +140,50 @@ function App() {
     localStorage.setItem('yst_users', JSON.stringify(usersDb));
   }, [usersDb]);
 
+  // Sub-category Slider Logic
+  const [subCatSliderStyle, setSubCatSliderStyle] = useState({ width: 0, left: 0 });
+  const subCatNavRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
+  const subCatContainerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateSliderPosition = () => {
+      const activeKey = currentSubCategory;
+      const activeEl = subCatNavRefs.current[activeKey];
+      if (activeEl) {
+        setSubCatSliderStyle({
+          width: activeEl.offsetWidth,
+          left: activeEl.offsetLeft
+        });
+      }
+    };
+
+    // Initial update
+    updateSliderPosition();
+
+    // Create ResizeObserver to handle dynamic content changes (fonts, scroll resize, window resize)
+    const observer = new ResizeObserver(() => {
+      // Re-measure when container or its content changes size
+      updateSliderPosition();
+    });
+
+    if (subCatContainerRef.current) {
+      observer.observe(subCatContainerRef.current);
+    }
+
+    // Also observe the active button itself in case it specifically resizes without affecting container
+    const activeBtn = subCatNavRefs.current[currentSubCategory];
+    if (activeBtn) {
+      observer.observe(activeBtn);
+    }
+
+    return () => observer.disconnect();
+  }, [currentSubCategory, isScrolled]);
+
+  const currentSubCategoriesToDisplay = useMemo(() => {
+    const cats = CATEGORY_MAPPING[currentTopLevel] || Object.values(Category);
+    return Array.from(new Set(cats)); // Ensure uniqueness to prevent duplicate keys
+  }, [currentTopLevel]);
+
   // Handle Scroll
   useEffect(() => {
     const handleScroll = () => {
@@ -198,10 +242,6 @@ function App() {
   }, [filteredArticles, currentTopLevel]);
 
   const heroArticle = filteredArticles.length > 0 ? filteredArticles[0] : null;
-
-  const currentSubCategoriesToDisplay = useMemo(() => {
-    return CATEGORY_MAPPING[currentTopLevel] || Object.values(Category);
-  }, [currentTopLevel]);
 
   const handleArticleClick = (article: Article) => {
     setSelectedArticle(article);
@@ -390,32 +430,49 @@ function App() {
                 md:[mask-image:linear-gradient(to_right,transparent,black_30px,black_calc(100%-30px),transparent)]
               `}
             >
-              <div className="max-w-[2100px] mx-auto px-4 sm:px-8 lg:px-12 flex gap-2 md:gap-3 min-w-max justify-center">
-                <button
-                  onClick={() => setCurrentSubCategory('ALL')}
-                  className={`
-                    ${isScrolled ? 'px-3 py-1.5 text-[13px]' : 'px-3.5 py-1.5 text-sm'}
-                    md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === 'ALL'
-                      ? 'bg-black text-white border-black shadow-md'
-                      : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
-                    }`}
+              <div className="max-w-[2100px] mx-auto px-4 sm:px-8 lg:px-12 flex justify-center">
+                <div
+                  ref={subCatContainerRef} // Add ref to container for ResizeObserver
+                  className="relative bg-white/50 backdrop-blur-md p-2.5 rounded-full inline-flex shadow-sm border border-white/20"
                 >
-                  All
-                </button>
-                {currentSubCategoriesToDisplay.map(cat => (
+                  {/* Animated Background Slider */}
+                  <div
+                    className="absolute top-2.5 bg-black/80 rounded-full shadow-sm transition-all duration-300 ease-out z-0 backdrop-blur-sm"
+                    style={{
+                      width: `${subCatSliderStyle.width}px`,
+                      height: 'calc(100% - 20px)',
+                      transform: `translateX(${subCatSliderStyle.left}px)`
+                    }}
+                  />
+
                   <button
-                    key={cat}
-                    onClick={() => setCurrentSubCategory(cat)}
+                    ref={el => subCatNavRefs.current['ALL'] = el}
+                    onClick={() => setCurrentSubCategory('ALL')}
                     className={`
-                      ${isScrolled ? 'px-3 py-1.5 text-[13px]' : 'px-3.5 py-1.5 text-sm'}
-                      md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === cat
-                        ? 'bg-black text-white border-black shadow-md'
-                        : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
-                      }`}
+                      relative z-10 flex items-center justify-center leading-none
+                      ${isScrolled ? 'px-4 py-1.5 text-[13px]' : 'px-5 py-2 text-sm'}
+                      md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-200 whitespace-nowrap
+                      ${currentSubCategory === 'ALL' ? 'text-white' : 'text-gray-500 hover:text-gray-900'}
+                    `}
                   >
-                    {cat}
+                    All
                   </button>
-                ))}
+                  {currentSubCategoriesToDisplay.map(cat => (
+                    <button
+                      key={cat}
+                      ref={el => subCatNavRefs.current[cat] = el}
+                      onClick={() => setCurrentSubCategory(cat)}
+                      className={`
+                        relative z-10 flex items-center justify-center leading-none
+                        ${isScrolled ? 'px-4 py-1.5 text-[13px]' : 'px-5 py-2 text-sm'}
+                        md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-200 whitespace-nowrap
+                        ${currentSubCategory === cat ? 'text-white' : 'text-gray-500 hover:text-gray-900'}
+                      `}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

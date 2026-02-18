@@ -51,9 +51,9 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({ article, featured = fa
           )}
         </div>
 
-        <div className="absolute bottom-0 left-0 p-8 md:p-12 w-full md:w-3/4 text-white">
-          <div className="flex items-center gap-3 mb-5">
-            <span className="inline-block px-4 py-1.5 text-xs md:text-sm font-bold tracking-wider uppercase bg-white/20 backdrop-blur-md rounded-full border border-white/10">
+        <div className="absolute bottom-0 left-0 p-5 md:p-12 w-full md:w-3/4 text-white">
+          <div className="flex items-center gap-3 mb-3 md:mb-5">
+            <span className="inline-block px-3 py-1 md:px-4 md:py-1.5 text-xs md:text-sm font-bold tracking-wider uppercase bg-white/20 backdrop-blur-md rounded-full border border-white/10">
               {article.category}
             </span>
             <div className="flex items-center gap-1.5 text-xs md:text-sm font-medium bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10">
@@ -61,13 +61,13 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({ article, featured = fa
               <span>{article.type === 'YOUTUBE' ? '影片' : article.type === 'BOOK' ? '書籍' : '文章'}</span>
             </div>
           </div>
-          <h2 className="text-2xl md:text-5xl font-bold leading-[1.2] mb-4 tracking-tight">
+          <h2 className="text-xl md:text-5xl font-bold leading-[1.2] mb-2 md:mb-4 tracking-tight">
             {article.title}
           </h2>
           <p className="text-gray-200 text-base md:text-xl line-clamp-2 md:line-clamp-3 leading-relaxed font-light opacity-90">
             {article.summary}
           </p>
-          <div className="mt-6 flex items-center gap-2 text-sm md:text-lg text-white font-medium group-hover:underline decoration-2 underline-offset-4">
+          <div className="mt-3 md:mt-6 flex items-center gap-2 text-sm md:text-lg text-white font-medium group-hover:underline decoration-2 underline-offset-4">
             <span>查看完整內容</span>
             <ArrowRight size={20} className="transition-transform group-hover:translate-x-1" />
           </div>
