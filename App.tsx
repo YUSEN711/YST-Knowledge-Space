@@ -153,7 +153,7 @@ function App() {
   const handleTopLevelChange = (level: TopLevelCategory) => {
     setCurrentTopLevel(level);
     setCurrentSubCategory('ALL');
-    window.scrollTo(0, 0);
+    // window.scrollTo(0, 0); // Keep scroll position to maintain glass effect
     if (selectedArticle) setSelectedArticle(null);
   };
 
@@ -385,10 +385,7 @@ function App() {
             <div
               className={`sticky top-20 z-40 w-full overflow-x-auto no-scrollbar transition-all duration-300
                 ${isScrolled ? 'py-1 md:py-2' : 'py-1 md:py-2'} 
-                ${isScrolled
-                  ? 'bg-[#f5f5f7]/95 backdrop-blur-sm shadow-sm'
-                  : 'bg-[#f5f5f7]'
-                }
+                bg-[#f5f5f7]/70 backdrop-blur-xl backdrop-saturate-150 shadow-sm border-b border-black/5 supports-[backdrop-filter]:bg-[#f5f5f7]/60
                 [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-12px),transparent)]
                 md:[mask-image:linear-gradient(to_right,transparent,black_30px,black_calc(100%-30px),transparent)]
               `}
@@ -397,7 +394,7 @@ function App() {
                 <button
                   onClick={() => setCurrentSubCategory('ALL')}
                   className={`
-                    ${isScrolled ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-sm'}
+                    ${isScrolled ? 'px-3 py-1.5 text-[13px]' : 'px-3.5 py-1.5 text-sm'}
                     md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === 'ALL'
                       ? 'bg-black text-white border-black shadow-md'
                       : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'
@@ -410,7 +407,7 @@ function App() {
                     key={cat}
                     onClick={() => setCurrentSubCategory(cat)}
                     className={`
-                      ${isScrolled ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-sm'}
+                      ${isScrolled ? 'px-3 py-1.5 text-[13px]' : 'px-3.5 py-1.5 text-sm'}
                       md:px-6 md:py-2.5 md:text-base rounded-full font-medium transition-all duration-300 border ${currentSubCategory === cat
                         ? 'bg-black text-white border-black shadow-md'
                         : 'bg-white text-gray-500 border-transparent hover:bg-gray-100'

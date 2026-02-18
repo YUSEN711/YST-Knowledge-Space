@@ -122,24 +122,24 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Navigation / Actions Bar */}
-        <div className="flex flex-wrap gap-4 justify-between items-center mb-10">
+        <div className="flex flex-nowrap gap-2 md:gap-4 justify-between items-center mb-6 md:mb-10 overflow-x-auto no-scrollbar">
           <button
             onClick={onBack}
-            className="group flex items-center gap-3 text-gray-600 hover:text-black transition-colors bg-white px-6 py-3 rounded-full shadow-sm hover:shadow-md border border-gray-100/50"
+            className="group flex-shrink-0 flex items-center gap-1.5 md:gap-3 text-gray-600 hover:text-black transition-colors bg-white px-3 py-2 md:px-6 md:py-3 rounded-full shadow-sm hover:shadow-md border border-gray-100/50"
           >
-            <ArrowLeft size={20} className="transition-transform group-hover:-translate-x-1" />
-            <span className="font-medium text-base">返回列表</span>
+            <ArrowLeft size={18} className="md:w-5 md:h-5 transition-transform group-hover:-translate-x-1" />
+            <span className="font-medium text-sm md:text-base whitespace-nowrap">返回列表</span>
           </button>
 
-          <div className="flex gap-2 sm:gap-3 relative">
+          <div className="flex gap-1.5 sm:gap-3 relative flex-shrink-0">
             {/* Edit Button - Only visible to Jason */}
             {canEdit && onEdit && (
               <button
                 onClick={() => onEdit(article)}
-                className="p-3 rounded-full transition-all shadow-sm border border-gray-100/50 bg-white text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                className="p-2 md:p-3 rounded-full transition-all shadow-sm border border-gray-100/50 bg-white text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                 title="編輯文章"
               >
-                <Edit2 size={20} />
+                <Edit2 size={18} className="md:w-5 md:h-5" />
               </button>
             )}
 
@@ -147,35 +147,35 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
             {canDelete && (
               <button
                 onClick={handleDeleteClick}
-                className="p-3 rounded-full transition-all shadow-sm border border-gray-100/50 bg-white text-red-500 hover:text-red-600 hover:bg-red-50"
+                className="p-2 md:p-3 rounded-full transition-all shadow-sm border border-gray-100/50 bg-white text-red-500 hover:text-red-600 hover:bg-red-50"
                 title="移至垃圾桶"
               >
-                <Trash2 size={20} />
+                <Trash2 size={18} className="md:w-5 md:h-5" />
               </button>
             )}
 
             {/* Save Button */}
             <button
               onClick={handleSaveClick}
-              className={`p-3 rounded-full transition-all shadow-sm border border-gray-100/50 ${isSaved
+              className={`p-2 md:p-3 rounded-full transition-all shadow-sm border border-gray-100/50 ${isSaved
                 ? 'bg-black text-white hover:bg-black/90'
                 : 'bg-white text-gray-500 hover:text-gray-900 hover:bg-white/80'
                 }`}
               title={isSaved ? "取消收藏" : "儲存至個人空間"}
             >
-              <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
+              <Bookmark size={18} className="md:w-5 md:h-5" fill={isSaved ? "currentColor" : "none"} />
             </button>
 
             {/* Share Dropdown */}
             <div className="relative" ref={shareMenuRef}>
               <button
                 onClick={() => setIsShareOpen(!isShareOpen)}
-                className={`p-3 rounded-full transition-all shadow-sm border border-gray-100/50 ${isShareOpen
+                className={`p-2 md:p-3 rounded-full transition-all shadow-sm border border-gray-100/50 ${isShareOpen
                   ? 'bg-gray-100 text-gray-900'
                   : 'bg-white text-gray-500 hover:text-gray-900 hover:bg-white/80'
                   }`}
               >
-                <Share2 size={20} />
+                <Share2 size={18} className="md:w-5 md:h-5" />
               </button>
 
               {/* Popup Menu */}
@@ -214,7 +214,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
               )}
             </div>
 
-            <Button variant="primary" size="md" onClick={() => window.open(article.url, '_blank')} className="shadow-sm">
+            <Button variant="primary" size="md" onClick={() => window.open(article.url, '_blank')} className="shadow-sm !p-2 md:!px-4 md:!py-2">
               <span className="hidden sm:inline text-base">前往來源</span>
               <ExternalLink size={18} className="sm:ml-2" />
             </Button>
