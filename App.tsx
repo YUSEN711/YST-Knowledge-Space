@@ -249,12 +249,28 @@ function App() {
     markAsRead(article.id);
   };
 
-  const handleAddArticle = (newArticle: Article) => {
+  const handleAddArticle = (articleData: Omit<Article, 'id' | 'date' | 'author'> & { imageUrl?: string }) => {
+    const newArticle: Article = {
+      ...articleData,
+      imageUrl: articleData.imageUrl || '',
+      id: Date.now().toString(),
+      date: new Date().toISOString().split('T')[0],
+      author: currentUser?.name || 'Anonymous',
+      isFeatured: false,
+    };
     setArticles(prev => [newArticle, ...prev]);
     setIsModalOpen(false);
   };
 
-  const handleUpdateArticle = (updatedArticle: Article) => {
+  const handleUpdateArticle = (articleData: Omit<Article, 'id' | 'date' | 'author'> & { imageUrl?: string }) => {
+    if (!editingArticle) return;
+
+    const updatedArticle: Article = {
+      ...editingArticle,
+      ...articleData,
+      imageUrl: articleData.imageUrl || editingArticle.imageUrl || '',
+    };
+
     setArticles(prev => prev.map(a => a.id === updatedArticle.id ? updatedArticle : a));
     setIsModalOpen(false);
     setEditingArticle(null);
