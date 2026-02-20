@@ -358,18 +358,37 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         return;
       }
 
-      // 2. Generic Article OR Book Logic
-      if (resourceType === 'ARTICLE' || resourceType === 'BOOK') {
+      // 2. Article Logic
+      if (resourceType === 'ARTICLE') {
         setIsFetchingTitle(true);
         const fetchedTitle = await fetchTitleFromUrl(url, resourceType);
         if (fetchedTitle) setTitle(prev => prev || fetchedTitle);
         setIsFetchingTitle(false);
 
-        // Fetch OG image immediately for both Articles and Books
         setIsFetchingImage(true);
         const fetchedImage = await fetchOgImage(url);
-        if (fetchedImage) {
-          setImageUrl(prev => prev || fetchedImage);
+        if (fetchedImage) setImageUrl(prev => prev || fetchedImage);
+        setIsFetchingImage(false);
+        return;
+      }
+
+      // 3. Book Logic — prioritise book cover (Google Books / Open Library), fallback to OG image
+      if (resourceType === 'BOOK') {
+        setIsFetchingTitle(true);
+        const fetchedTitle = await fetchTitleFromUrl(url, resourceType);
+        if (fetchedTitle) setTitle(prev => prev || fetchedTitle);
+        setIsFetchingTitle(false);
+
+        setIsFetchingImage(true);
+        // Use the title we just fetched (or whatever's already in state) to get the book cover
+        const titleForCover = title || fetchedTitle || '';
+        const bookCover = titleForCover ? await fetchBookCover(titleForCover) : null;
+        if (bookCover) {
+          setImageUrl(prev => prev || bookCover);
+        } else {
+          // Fallback: OG image from the book page
+          const ogImage = await fetchOgImage(url);
+          if (ogImage) setImageUrl(prev => prev || ogImage);
         }
         setIsFetchingImage(false);
         return;
@@ -382,15 +401,13 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
     return () => clearTimeout(timer);
   }, [url, resourceType]); // Dependency trimmed to avoid loops
 
-  // Separate effect for Book cover fetching on Title change (Fallback)
+  // Separate effect: if user manually types/changes the title on a BOOK and no cover yet, try to fetch cover
   useEffect(() => {
-    if (resourceType !== 'BOOK' || !title) return;
+    if (resourceType !== 'BOOK' || !title || imageUrl) return;
     const timer = setTimeout(async () => {
       setIsFetchingImage(true);
       const cover = await fetchBookCover(title);
-      if (cover) {
-        setImageUrl(prev => prev || cover);
-      }
+      if (cover) setImageUrl(cover);
       setIsFetchingImage(false);
     }, 1500);
     return () => clearTimeout(timer);
