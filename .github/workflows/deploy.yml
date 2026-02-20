@@ -21,6 +21,7 @@ jobs:
       - name: Install and Build
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VITE_ADMIN_PASSWORD: ${{ secrets.VITE_ADMIN_PASSWORD }}
         run: |
           npm ci
           npm run build

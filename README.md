@@ -41,6 +41,7 @@ cp .env.example .env   # if example exists, otherwise create manually
 
 ```
 GEMINI_API_KEY=your_gemini_api_key_here
+VITE_ADMIN_PASSWORD=your_admin_password_here
 ```
 
 ### 4. Start the dev server

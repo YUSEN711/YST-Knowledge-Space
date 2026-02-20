@@ -365,14 +365,13 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         if (fetchedTitle) setTitle(prev => prev || fetchedTitle);
         setIsFetchingTitle(false);
 
-        // For Articles, fetch OG image immediately
-        // For Books, we rely on the separate title-based cover fetcher (below)
-        if (resourceType === 'ARTICLE') {
-          setIsFetchingImage(true);
-          const fetchedImage = await fetchOgImage(url);
-          if (fetchedImage && !imageUrl) setImageUrl(fetchedImage);
-          setIsFetchingImage(false);
+        // Fetch OG image immediately for both Articles and Books
+        setIsFetchingImage(true);
+        const fetchedImage = await fetchOgImage(url);
+        if (fetchedImage) {
+          setImageUrl(prev => prev || fetchedImage);
         }
+        setIsFetchingImage(false);
         return;
       }
 
@@ -383,13 +382,15 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
     return () => clearTimeout(timer);
   }, [url, resourceType]); // Dependency trimmed to avoid loops
 
-  // Separate effect for Book cover fetching on Title change
+  // Separate effect for Book cover fetching on Title change (Fallback)
   useEffect(() => {
     if (resourceType !== 'BOOK' || !title) return;
     const timer = setTimeout(async () => {
       setIsFetchingImage(true);
       const cover = await fetchBookCover(title);
-      if (cover) setImageUrl(cover);
+      if (cover) {
+        setImageUrl(prev => prev || cover);
+      }
       setIsFetchingImage(false);
     }, 1500);
     return () => clearTimeout(timer);

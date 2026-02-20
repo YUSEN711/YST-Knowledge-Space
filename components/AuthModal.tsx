@@ -16,18 +16,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }
     e.preventDefault();
 
     if (username.trim()) {
-      // Special handling for Jason
-      if (username.toLowerCase() === 'jason') {
-        if (password === '1234') {
-          onLogin(username.trim(), password);
-          handleClose();
-        } else {
-          alert('密碼錯誤 (預設密碼: 1234)');
-        }
-      } else {
-        // Regular user
-        onLogin(username.trim(), password);
-        handleClose();
+      const success = onLogin(username.trim(), password);
+      // App.tsx handles closing IF it doesn't return a boolean or actually opens/closes globally
+      // Wait, isLoginModalOpen is managed by App.tsx. So onLogin already calls setIsLoginModalOpen(false) if success.
+      // We just need to reset the local input fields.
+      if (success !== false) {
+        setUsername('');
+        setPassword('');
       }
     }
   };

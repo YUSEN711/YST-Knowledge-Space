@@ -363,6 +363,13 @@ function App() {
   };
 
   const handleLogin = (username: string, pass?: string) => {
+    // Check password early for Jason/Admin
+    const adminPassword = (import.meta as any).env.VITE_ADMIN_PASSWORD;
+    if (username.toLowerCase() === 'jason' && pass !== adminPassword) {
+      alert('密碼錯誤！');
+      return false; // Login failed
+    }
+
     // Simple mock login
     let user = usersDb[username];
     if (!user) {
@@ -386,21 +393,10 @@ function App() {
       }
     }
 
-    // Check password (only for Jason/Admin)
-    if (username.toLowerCase() === 'jason') {
-      if (pass === 'admin' || pass === '1234') {
-        setCurrentUser(user);
-        localStorage.setItem('yst_user', JSON.stringify(user));
-        setIsLoginModalOpen(false);
-      } else {
-        alert('Admin password required (Try "admin")');
-      }
-    } else {
-      // Regular users auto-login for now (simplification)
-      setCurrentUser(user);
-      localStorage.setItem('yst_user', JSON.stringify(user));
-      setIsLoginModalOpen(false);
-    }
+    setCurrentUser(user);
+    localStorage.setItem('yst_user', JSON.stringify(user));
+    setIsLoginModalOpen(false);
+    return true; // Login success
   };
 
   const handleLogout = () => {
