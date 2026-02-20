@@ -1,57 +1,120 @@
 # YST Knowledge Space
 
-A React application built with Vite, TypeScript, and Tailwind CSS (planned).
+A React 19 + Vite + TypeScript knowledge management app, powered by Google Gemini AI. Deployed to GitHub Pages via GitHub Actions.
+
+## Tech Stack
+
+| Tool | Version |
+|------|---------|
+| React | ^19 |
+| Vite | ^6 |
+| TypeScript | ~5.8 |
+| @google/genai | ^1.41 |
+| lucide-react | ^0.564 |
+
+---
 
 ## Getting Started
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository-url>
-    cd YST-Knowledge-Space
-    ```
+### 1. Clone the repo
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+```bash
+git clone https://github.com/<your-username>/YST-Knowledge-Space.git
+cd YST-Knowledge-Space
+```
 
-3.  **Start the development server:**
-    ```bash
-    npm run dev
-    ```
-     
-## Scripts
+### 2. Install dependencies
 
--   `npm run dev`: Starts the development server.
--   `npm run build`: Builds the application for production.
--   `npm run preview`: Previews the production build locally.
--   `npm run lint`: Runs ESLint to check for code quality issues.
--   `npm run format`: Formats code using Prettier.
--   `npm run deploy`: Manually deploys the application to GitHub Pages.
- 
+```bash
+npm install
+```
+
+### 3. Set up environment variables
+
+Create a `.env` file in the project root (never commit this):
+
+```bash
+cp .env.example .env   # if example exists, otherwise create manually
+```
+
+`.env` content:
+
+```
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+### 4. Start the dev server
+
+```bash
+npm run dev
+# → http://localhost:3000/YST-Knowledge-Space/
+```
+
+---
+
+## Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start Vite dev server (port 3000) |
+| `npm run build` | Production build → `dist/` |
+| `npm run preview` | Preview production build locally |
+| `npm run lint` | ESLint check |
+| `npm run format` | Prettier format |
+| `npm run deploy` | Manual deploy via `gh-pages` |
+
+---
+
 ## Deployment
-  
-### Automated Deployment (Recommended)
 
-This project is configured with GitHub Actions to automatically deploy to GitHub Pages whenever changes are pushed to the `main` branch.
+### Automated — GitHub Actions (recommended)
 
-1.  Ensure your repository is on GitHub.
-2.  Go to **Settings** > **Pages**.
-3.  Under **Build and deployment** > **Source**, select **GitHub Actions**.
-4.  Push your changes to `main`. The `Deploy to GitHub Pages` workflow will run automatically.
+On every push to `main`, the workflow at `.github/workflows/deploy.yml` will:
 
-### Manual Deployment
+1. Install dependencies (`npm ci`)
+2. Build the app (`npm run build`)
+3. Deploy `dist/` to GitHub Pages automatically
 
-To manually deploy to GitHub Pages:
+**Setup steps:**
+
+1. Go to your repo → **Settings** → **Pages**
+2. Under **Build and deployment → Source**, choose **GitHub Actions**
+3. Add your secret: **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+   - Name: `GEMINI_API_KEY`
+   - Value: your actual API key
+4. Push to `main` — the action will trigger automatically
+5. You can also trigger it manually from **Actions** → **Deploy to GitHub Pages** → **Run workflow**
+
+### Manual deploy
 
 ```bash
 npm run deploy
 ```
 
+This runs `vite build` then pushes `dist/` to the `gh-pages` branch via the `gh-pages` package.
+
+---
+
+## Project Structure
+
+```
+.
+├── .github/workflows/deploy.yml  # CI/CD pipeline
+├── components/                   # React components
+├── services/                     # API / service layer
+├── App.tsx                       # Root component
+├── index.tsx                     # Entry point
+├── constants.ts                  # App-wide constants
+├── types.ts                      # TypeScript types
+├── vite.config.ts                # Vite config (base path, env)
+└── .env                          # Local secrets (gitignored)
+```
+
+---
+
 ## Contributing
 
-1.  Fork the repository.
-2.  Create a new branch (`git checkout -b feature/your-feature`).
-3.  Commit your changes.
-4.  Push to the branch.
-5.  Open a Pull Request.
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit your changes
+4. Push and open a Pull Request

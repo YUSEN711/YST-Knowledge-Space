@@ -37,6 +37,9 @@ export interface Article {
 export interface User {
   id: string;
   name: string;
-  savedArticleIds: string[];
+  username: string;
+  avatar: string;
+  role: 'ADMIN' | 'USER';
+  savedArticles: string[];
   readArticleIds: string[];
 }

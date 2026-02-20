@@ -117,11 +117,22 @@ function App() {
   const [currentSubCategory, setCurrentSubCategory] = useState<Category | 'ALL'>('ALL');
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // Load user session
+  // Load user session (with migration for old shape)
   useEffect(() => {
     const savedUser = localStorage.getItem('yst_user');
     if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
+      const u = JSON.parse(savedUser) as Record<string, unknown>;
+      // Migrate legacy field names
+      const migrated: User = {
+        id: (u.id as string) || Date.now().toString(),
+        name: (u.name as string) || (u.username as string) || 'Unknown',
+        username: (u.username as string) || (u.name as string) || 'unknown',
+        avatar: (u.avatar as string) || `https://ui-avatars.com/api/?name=${u.name || u.username}&background=random`,
+        role: ((u.role as string) === 'ADMIN' ? 'ADMIN' : 'USER'),
+        savedArticles: (u.savedArticles as string[]) || (u.savedArticleIds as string[]) || [],
+        readArticleIds: (u.readArticleIds as string[]) || [],
+      };
+      setCurrentUser(migrated);
     }
   }, []);
 
@@ -313,16 +324,15 @@ function App() {
     }
 
     setUsersDb(prev => {
-      const user = prev[currentUser.username];
+      const user = prev[currentUser.username] || currentUser;
       const saved = user.savedArticles || [];
       const newSaved = saved.includes(id)
         ? saved.filter(sid => sid !== id)
         : [...saved, id];
 
       const updatedUser = { ...user, savedArticles: newSaved };
-      // Update current user session as well
       setCurrentUser(updatedUser);
-      localStorage.setItem('yst_user', JSON.stringify(updatedUser)); // Update session immediately
+      localStorage.setItem('yst_user', JSON.stringify(updatedUser));
       return { ...prev, [currentUser.username]: updatedUser };
     });
   };
@@ -335,16 +345,15 @@ function App() {
     if (!currentUser) return;
 
     setUsersDb(prev => {
-      const user = prev[currentUser.username];
+      const user = prev[currentUser.username] || currentUser;
       const read = user.readArticleIds || [];
-      if (read.includes(id)) return prev; // Already read
+      if (read.includes(id)) return prev;
 
       const newRead = [...read, id];
       const updatedUser = { ...user, readArticleIds: newRead };
 
-      // Update current user session
       setCurrentUser(updatedUser);
-      localStorage.setItem('yst_user', JSON.stringify(updatedUser)); // Update session immediately
+      localStorage.setItem('yst_user', JSON.stringify(updatedUser));
       return { ...prev, [currentUser.username]: updatedUser };
     });
   };
