@@ -125,7 +125,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
         <div className="flex flex-nowrap gap-2 md:gap-4 justify-between items-center mb-6 md:mb-10 overflow-x-auto no-scrollbar">
           <button
             onClick={onBack}
-            className="group flex-shrink-0 flex items-center gap-1.5 md:gap-3 text-gray-600 hover:text-black transition-colors bg-white px-3 py-2 md:px-6 md:py-3 rounded-full shadow-sm hover:shadow-md border border-gray-100/50"
+            className="group flex-shrink-0 flex items-center gap-1.5 md:gap-3 text-gray-600 hover:text-black transition-colors bg-white px-3 py-2 md:px-6 md:py-3 rounded-full shadow-sm border border-gray-100/50"
           >
             <ArrowLeft size={18} className="md:w-5 md:h-5 transition-transform group-hover:-translate-x-1" />
             <span className="font-medium text-sm md:text-base whitespace-nowrap">返回列表</span>
