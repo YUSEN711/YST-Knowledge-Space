@@ -78,7 +78,7 @@ serve(async (req) => {
       ${textContent}
     `;
 
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -96,7 +96,7 @@ serve(async (req) => {
     if (!geminiRes.ok) {
       const errorText = await geminiRes.text();
       console.error("Gemini Error:", errorText);
-      throw new Error("Failed to generate summary");
+      throw new Error(`Gemini API Error: ${errorText}`);
     }
 
     const geminiData = await geminiRes.json();
