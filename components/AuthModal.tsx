@@ -1,35 +1,48 @@
 import React, { useState } from 'react';
-import { X, User } from 'lucide-react';
+import { X, Mail, Lock, Loader2 } from 'lucide-react';
 import { Button } from './Button';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (username: string, password?: string) => void;
+  onLogin: (email: string, password?: string, isSignUp?: boolean) => Promise<boolean>;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }) => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
 
-    if (username.trim()) {
-      const success = onLogin(username.trim(), password);
-      // App.tsx handles closing IF it doesn't return a boolean or actually opens/closes globally
-      // Wait, isLoginModalOpen is managed by App.tsx. So onLogin already calls setIsLoginModalOpen(false) if success.
-      // We just need to reset the local input fields.
-      if (success !== false) {
-        setUsername('');
-        setPassword('');
+    if (email.trim() && password.trim()) {
+      setIsLoading(true);
+      try {
+        const success = await onLogin(email.trim(), password.trim(), isSignUp);
+        if (success) {
+          setEmail('');
+          setPassword('');
+          setIsSignUp(false);
+        } else {
+          setErrorMsg(isSignUp ? '註冊失敗，請檢查信箱格式或密碼長度（至少 6 碼）。' : '登入失敗，請檢查信箱或密碼是否正確。');
+        }
+      } catch (err: any) {
+        setErrorMsg(err.message || '發生未知錯誤');
+      } finally {
+        setIsLoading(false);
       }
     }
   };
 
   const handleClose = () => {
-    setUsername('');
+    setEmail('');
     setPassword('');
+    setErrorMsg('');
+    setIsSignUp(false);
     onClose();
   };
 
@@ -58,36 +71,59 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="text-center">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <User size={32} className="text-gray-400" />
+              <Mail size={32} className="text-gray-400" />
             </div>
-            <p className="text-sm text-gray-500 mb-2">請輸入您的名稱以登入或註冊</p>
+            <p className="text-sm text-gray-500 mb-2">請輸入您的 Email 與密碼</p>
           </div>
 
           <div className="space-y-4">
-            <input
-              required
-              autoFocus
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="您的名稱 (例如: Alex)"
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-black focus:ring-1 focus:ring-black transition-all outline-none text-base text-center"
-            />
-            {username.toLowerCase() === 'jason' && (
+            <div className="relative relative-group">
+              <input
+                required
+                autoFocus
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="信箱 (Email)"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-black focus:ring-1 focus:ring-black transition-all outline-none text-base"
+              />
+              <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            </div>
+
+            <div className="relative">
               <input
                 required
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="請輸入密碼"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-black focus:ring-1 focus:ring-black transition-all outline-none text-base text-center"
+                placeholder="密碼 (至少 6 個字元)"
+                minLength={6}
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-black focus:ring-1 focus:ring-black transition-all outline-none text-base"
               />
-            )}
+              <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            </div>
           </div>
 
-          <Button type="submit" className="w-full" size="lg">
-            登入 / 註冊
+          {errorMsg && (
+            <div className="text-red-500 text-sm text-center bg-red-50 p-2 rounded-lg">
+              {errorMsg}
+            </div>
+          )}
+
+          <Button type="submit" className="w-full flex justify-center items-center gap-2" size="lg" disabled={isLoading}>
+            {isLoading && <Loader2 size={18} className="animate-spin" />}
+            {isSignUp ? '建立帳號' : '登入'}
           </Button>
+
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-sm text-gray-500 hover:text-black transition-colors"
+            >
+              {isSignUp ? '已經有帳號了嗎？點此登入' : '還沒有帳號嗎？點此註冊'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

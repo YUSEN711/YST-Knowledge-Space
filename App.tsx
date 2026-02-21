@@ -85,15 +85,59 @@ function App() {
   const [currentSubCategory, setCurrentSubCategory] = useState<Category | 'ALL'>('ALL');
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // Load user session from localStorage (keep login session local)
+  // 1. Listen for Auth State Changes
   useEffect(() => {
-    const savedUser = localStorage.getItem('yst_user');
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-    }
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    // Listen for auth changes (login, logout)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch initial data from Supabase and subscribe to changes
+  // Helper to fetch custom user profile based on Auth UID
+  const fetchUserProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error("Error fetching profile:", error);
+      return;
+    }
+
+    if (data) {
+      const user: User = {
+        id: data.id,
+        name: data.name,
+        username: data.username,
+        avatar: data.avatar || `https://ui-avatars.com/api/?name=${data.name}&background=random`,
+        role: data.role as 'ADMIN' | 'USER',
+        savedArticles: data.saved_articles || [],
+        readArticleIds: data.read_articles || []
+      };
+      setCurrentUser(user);
+    }
+  };
+
+  // Fetch initial articles and subscribe to changes
   useEffect(() => {
     const fetchInitialData = async () => {
       // Fetch articles
@@ -111,33 +155,6 @@ function App() {
         setDeletedArticles(deleted);
       } else {
         setArticles(INITIAL_ARTICLES);
-      }
-
-      // Fetch users
-      const { data: usersData } = await supabase.from('user_profiles').select('*');
-      if (usersData) {
-        const usersObj: Record<string, User> = {};
-        usersData.forEach(u => {
-          usersObj[u.username] = {
-            id: u.username,
-            name: u.name,
-            username: u.username,
-            avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=random`,
-            role: u.role,
-            savedArticles: u.saved_articles || [],
-            readArticleIds: u.read_articles || []
-          };
-        });
-        setUsersDb(usersObj);
-
-        // Update current user if their db profile changed
-        if (currentUser) {
-          const freshUser = usersObj[currentUser.username];
-          if (freshUser) {
-            setCurrentUser(freshUser);
-            localStorage.setItem('yst_user', JSON.stringify(freshUser));
-          }
-        }
       }
 
       setIsInitializing(false);
@@ -185,10 +202,10 @@ function App() {
       .channel('users-channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles' }, (payload) => {
         const u = payload.new as any;
-        if (!u || !u.username) return;
+        if (!u || !u.id) return;
 
         const updatedUser: User = {
-          id: u.username,
+          id: u.id,
           name: u.name,
           username: u.username,
           avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=random`,
@@ -200,14 +217,11 @@ function App() {
         setUsersDb(prev => ({ ...prev, [u.username]: updatedUser }));
 
         // If the updated user is the current logged-in user, refresh their session state
-        const storedUserJson = localStorage.getItem('yst_user');
-        if (storedUserJson) {
-          const storedUser = JSON.parse(storedUserJson);
-          if (storedUser.username === u.username) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user?.id === u.id) {
             setCurrentUser(updatedUser);
-            localStorage.setItem('yst_user', JSON.stringify(updatedUser));
           }
-        }
+        });
       })
       .subscribe();
 
@@ -228,7 +242,7 @@ function App() {
     category: normalizeCategory(dbArt.category),
     type: dbArt.type as ResourceType,
     date: dbArt.date,
-    author: dbArt.author,
+    author: dbArt.author_name || 'Anonymous', // Map new schema field
     content: dbArt.content || undefined,
     keyPoints: dbArt.key_points || undefined,
     conclusion: dbArt.conclusion || undefined,
@@ -346,6 +360,8 @@ function App() {
   };
 
   const handleAddArticle = async (articleData: Omit<Article, 'id' | 'date' | 'author'> & { imageUrl?: string }) => {
+    if (!currentUser) return;
+
     const newArticle = {
       title: articleData.title,
       summary: articleData.summary,
@@ -353,7 +369,8 @@ function App() {
       image_url: articleData.imageUrl || null,
       category: articleData.category,
       type: articleData.type,
-      author: currentUser?.name || 'Anonymous',
+      author_id: currentUser.id,
+      author_name: currentUser.name,
       content: articleData.content || null,
       key_points: articleData.keyPoints || null,
       conclusion: articleData.conclusion || null,
@@ -362,7 +379,10 @@ function App() {
 
     // Note: State updates automatically via Realtime subscription!
     const { error } = await supabase.from('articles').insert([newArticle]);
-    if (error) console.error("Error adding article:", error);
+    if (error) {
+      console.error("Error adding article:", error);
+      alert("發布失敗，請確認您已登入。");
+    }
 
     setIsModalOpen(false);
   };
@@ -468,49 +488,45 @@ function App() {
     return currentUser?.readArticleIds?.includes(id) || false;
   };
 
-  const handleLogin = async (username: string, pass?: string) => {
-    // Check password early for Jason/Admin
-    const adminPassword = (import.meta as any).env.VITE_ADMIN_PASSWORD;
-    if (username.toLowerCase() === 'jason' && pass !== adminPassword) {
-      alert('密碼錯誤！');
-      return false; // Login failed
+  const handleLogin = async (email: string, password?: string, isSignUp?: boolean) => {
+    if (!password) throw new Error("密碼不得為空");
+
+    if (isSignUp) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (error) throw error;
+
+      // Note: Triggers automatically create the user_profile.
+      // We might need to wait a second for the trigger to insert it before selecting, but Realtime will catch it.
+
+      // After sign up, users are automatically logged in or sent a confirmation email depending on Supabase settings.
+      // For this case, we assume auto-login if email confirmations are disabled.
+      if (data.user) {
+        setIsLoginModalOpen(false);
+        return true;
+      }
+      return false;
+
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+
+      if (data.user) {
+        setIsLoginModalOpen(false);
+        return true;
+      }
+      return false;
     }
-
-    let user = usersDb[username];
-    if (!user) {
-      // Register if not exists in DB
-      const newProfile = {
-        username: username,
-        name: username,
-        avatar: `https://ui-avatars.com/api/?name=${username}&background=random`,
-        role: username.toLowerCase() === 'jason' ? 'ADMIN' : 'USER',
-        saved_articles: [],
-        read_articles: []
-      };
-
-      const { error } = await supabase.from('user_profiles').insert([newProfile]);
-      if (error) console.error("Error creating user profile:", error);
-
-      user = {
-        id: username,
-        name: username,
-        username: username,
-        avatar: newProfile.avatar,
-        role: newProfile.role as 'ADMIN' | 'USER',
-        savedArticles: [],
-        readArticleIds: []
-      };
-    }
-
-    setCurrentUser(user);
-    localStorage.setItem('yst_user', JSON.stringify(user));
-    setIsLoginModalOpen(false);
-    return true; // Login success
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setCurrentUser(null);
-    localStorage.removeItem('yst_user');
   };
 
   const savedArticles = useMemo(() => {
