@@ -508,7 +508,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-[fadeIn_0.3s_ease-out] max-h-[90vh] overflow-y-auto no-scrollbar">
+      <div className="relative bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-[fadeIn_0.3s_ease-out] max-h-[90vh] flex flex-col">
 
         {/* API Key Modal Overlay */}
         {showApiKeyInput && (
@@ -577,7 +577,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto no-scrollbar flex-1 pb-24">
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 block">資源類型</label>
@@ -733,7 +733,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
             </div>
           )}
 
-          <div className="pt-4">
+          <div className="sticky bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm pt-3 pb-4 px-6 -mx-6 -mb-5 mt-2 border-t border-gray-100">
             <Button
               type="submit"
               variant="primary"

@@ -151,6 +151,35 @@ function App() {
     localStorage.setItem('yst_users', JSON.stringify(usersDb));
   }, [usersDb]);
 
+  // Sync state across tabs/windows via storage event
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (!e.newValue) return;
+
+      try {
+        switch (e.key) {
+          case 'yst_articles':
+            setArticles(JSON.parse(e.newValue));
+            break;
+          case 'yst_deleted_articles':
+            setDeletedArticles(JSON.parse(e.newValue));
+            break;
+          case 'yst_users':
+            setUsersDb(JSON.parse(e.newValue));
+            break;
+          case 'yst_user':
+            setCurrentUser(JSON.parse(e.newValue));
+            break;
+        }
+      } catch (err) {
+        console.error('Error parsing storage event data:', err);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // Sub-category Slider Logic
   const [subCatSliderStyle, setSubCatSliderStyle] = useState({ width: 0, left: 0 });
   const subCatNavRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
@@ -447,11 +476,11 @@ function App() {
               className={`sticky top-20 z-40 w-full overflow-x-auto no-scrollbar transition-all duration-300
                 ${isScrolled ? 'py-1 md:py-2' : 'py-1 md:py-2'} 
                 bg-[#f5f5f7]/70 backdrop-blur-xl backdrop-saturate-150 shadow-sm border-b border-black/5 supports-[backdrop-filter]:bg-[#f5f5f7]/60
-                [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-12px),transparent)]
+                [mask-image:linear-gradient(to_right,transparent,black_4px,black_calc(100%-4px),transparent)]
                 md:[mask-image:linear-gradient(to_right,transparent,black_30px,black_calc(100%-30px),transparent)]
               `}
             >
-              <div className="max-w-[2100px] mx-auto px-4 sm:px-8 lg:px-12 flex justify-center">
+              <div className="max-w-[2100px] mx-auto px-4 sm:px-8 lg:px-12 w-max min-w-full flex justify-center">
                 <div
                   ref={subCatContainerRef} // Add ref to container for ResizeObserver
                   className="relative bg-white/50 backdrop-blur-md p-2.5 rounded-full inline-flex shadow-sm border border-white/20"
