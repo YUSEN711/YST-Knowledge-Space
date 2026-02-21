@@ -390,6 +390,29 @@ function App() {
   const handleUpdateArticle = async (articleData: Omit<Article, 'id' | 'date' | 'author'> & { imageUrl?: string }) => {
     if (!editingArticle) return;
 
+    // Handle Mock Article Update
+    if (editingArticle.id.length < 36) {
+      const updatedLocalArticle = {
+        ...editingArticle,
+        title: articleData.title,
+        summary: articleData.summary,
+        url: articleData.url,
+        imageUrl: articleData.imageUrl || editingArticle.imageUrl || '',
+        category: articleData.category,
+        type: articleData.type,
+        content: articleData.content,
+        keyPoints: articleData.keyPoints,
+        conclusion: articleData.conclusion
+      };
+      setArticles(prev => prev.map(a => a.id === editingArticle.id ? updatedLocalArticle : a));
+      setIsModalOpen(false);
+      setEditingArticle(null);
+      if (selectedArticle?.id === editingArticle.id) {
+        setSelectedArticle(updatedLocalArticle);
+      }
+      return;
+    }
+
     const updatedDbArticle = {
       title: articleData.title,
       summary: articleData.summary,
@@ -418,26 +441,65 @@ function App() {
   };
 
   const handleSoftDeleteArticle = async (id: string) => {
+    // Handle Mock Article Soft Delete
+    if (id.length < 36) {
+      const mockArticle = articles.find(a => a.id === id);
+      if (mockArticle) {
+        setArticles(prev => prev.filter(a => a.id !== id));
+        setDeletedArticles(prev => [{ ...mockArticle, is_deleted: true }, ...prev]);
+      }
+      if (selectedArticle?.id === id) setSelectedArticle(null);
+      return;
+    }
+
     const { error } = await supabase.from('articles').update({ is_deleted: true }).eq('id', id);
-    if (error) console.error("Error soft deleting:", error);
+    if (error) {
+      console.error("Error soft deleting:", error);
+      alert("移至垃圾桶失敗：" + error.message);
+    }
     if (selectedArticle?.id === id) setSelectedArticle(null);
   };
 
   const handleRestoreArticle = async (id: string) => {
+    // Handle Mock Article Restore
+    if (id.length < 36) {
+      const mockArticle = deletedArticles.find(a => a.id === id);
+      if (mockArticle) {
+        setDeletedArticles(prev => prev.filter(a => a.id !== id));
+        setArticles(prev => [{ ...mockArticle, is_deleted: false }, ...prev].sort((a, b) => b.id.localeCompare(a.id)));
+      }
+      return;
+    }
+
     const { error } = await supabase.from('articles').update({ is_deleted: false }).eq('id', id);
     if (error) console.error("Error restoring:", error);
   };
 
   const handlePermanentDelete = async (id: string) => {
+    // Handle Mock Article Permanent Delete
+    if (id.length < 36) {
+      setDeletedArticles(prev => prev.filter(a => a.id !== id));
+      return;
+    }
+
     const { error } = await supabase.from('articles').delete().eq('id', id);
-    if (error) console.error("Error permanent deleting:", error);
+    if (error) {
+      console.error("Error permanent deleting:", error);
+      alert("永久刪除失敗：" + error.message);
+    }
   };
 
   const handleEmptyTrash = async () => {
     if (window.confirm('確定要清空垃圾桶嗎？此動作無法復原。')) {
-      // Delete all where is_deleted = true
+      // Clear Mock Articles from Trash
+      setDeletedArticles(prev => prev.filter(a => a.id.length >= 36));
+
+      // Delete all where is_deleted = true from DB
       const { error } = await supabase.from('articles').delete().eq('is_deleted', true);
-      if (error) console.error("Error emptying trash:", error);
+      if (error) {
+        console.error("Error emptying trash:", error);
+        alert("清空垃圾桶失敗：" + error.message);
+      }
     }
   };
 
