@@ -325,7 +325,8 @@ function App() {
         filtered = filtered.filter(a => allowedCategories.includes(a.category) && a.type !== 'BOOK');
       }
     } else {
-      // LATEST shows everything including books
+      // LATEST: exclude books so they only show under the BOOKS tab
+      filtered = filtered.filter(a => a.type !== 'BOOK');
     }
 
     // 2. Filter by Sub Category (if not ALL)
@@ -685,7 +686,7 @@ function App() {
             </div>
           )}
 
-          <main className="flex-1 max-w-[2100px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-6 space-y-16">
+          <main className="flex-1 max-w-[2100px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-6 space-y-16 origin-top" style={{ transform: 'scale(0.8)', transformOrigin: 'top center', marginBottom: '-20%' }}>
             {/* Featured Hero Section - Hide on BOOKS tab */}
             {heroArticle && currentTopLevel !== 'BOOKS' && (
               <section className="animate-[fadeIn_0.5s_ease-out]">
@@ -705,8 +706,8 @@ function App() {
                 icon={<LayoutGrid size={28} className="text-gray-700" />}
               >
                 <div className={`grid gap-8 md:gap-8 lg:gap-10 animate-[fadeIn_0.7s_ease-out] ${currentTopLevel === 'BOOKS'
-                  ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
-                  : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                    ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
+                    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
                   }`}>
                   {listArticles.map(article => (
                     <ArticleCard
