@@ -255,14 +255,26 @@ function App() {
   const subCatNavRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
   const subCatContainerRef = React.useRef<HTMLDivElement>(null);
 
+  // Responsive scale hook
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   useEffect(() => {
     const updateSliderPosition = () => {
       const activeKey = currentSubCategory;
       const activeEl = subCatNavRefs.current[activeKey];
-      if (activeEl) {
+      const container = subCatContainerRef.current;
+      if (activeEl && container) {
+        // Use getBoundingClientRect relative to the pill container to handle horizontal scroll on mobile
+        const containerRect = container.getBoundingClientRect();
+        const btnRect = activeEl.getBoundingClientRect();
         setSubCatSliderStyle({
           width: activeEl.offsetWidth,
-          left: activeEl.offsetLeft
+          left: btnRect.left - containerRect.left + container.scrollLeft
         });
       }
     };
@@ -272,12 +284,13 @@ function App() {
 
     // Create ResizeObserver to handle dynamic content changes (fonts, scroll resize, window resize)
     const observer = new ResizeObserver(() => {
-      // Re-measure when container or its content changes size
       updateSliderPosition();
     });
 
     if (subCatContainerRef.current) {
       observer.observe(subCatContainerRef.current);
+      // Also listen for scrolling inside the scrollable container (horizontal scroll on mobile)
+      subCatContainerRef.current.addEventListener('scroll', updateSliderPosition);
     }
 
     // Also observe the active button itself in case it specifically resizes without affecting container
@@ -286,7 +299,10 @@ function App() {
       observer.observe(activeBtn);
     }
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      subCatContainerRef.current?.removeEventListener('scroll', updateSliderPosition);
+    };
   }, [currentSubCategory, isScrolled]);
 
   const currentSubCategoriesToDisplay = useMemo(() => {
@@ -686,7 +702,15 @@ function App() {
             </div>
           )}
 
-          <main className="flex-1 max-w-[2100px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-6 space-y-16 origin-top" style={{ transform: 'scale(0.8)', transformOrigin: 'top center', marginBottom: '-20%' }}>
+          <main
+            className="flex-1 max-w-[2100px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-6 space-y-16"
+            style={{
+              // Mobile (< 768px): 0.8 × 1.2 = 0.96 (+20%), Desktop: 0.8 × 1.1 = 0.88 (+10%)
+              transform: isMobile ? 'scale(0.96)' : 'scale(0.88)',
+              transformOrigin: 'top center',
+              marginBottom: isMobile ? '-4%' : '-12%'
+            }}
+          >
             {/* Featured Hero Section - Hide on BOOKS tab */}
             {heroArticle && currentTopLevel !== 'BOOKS' && (
               <section className="animate-[fadeIn_0.5s_ease-out]">
@@ -706,8 +730,8 @@ function App() {
                 icon={<LayoutGrid size={28} className="text-gray-700" />}
               >
                 <div className={`grid gap-8 md:gap-8 lg:gap-10 animate-[fadeIn_0.7s_ease-out] ${currentTopLevel === 'BOOKS'
-                    ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
-                    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                  ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
+                  : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
                   }`}>
                   {listArticles.map(article => (
                     <ArticleCard
