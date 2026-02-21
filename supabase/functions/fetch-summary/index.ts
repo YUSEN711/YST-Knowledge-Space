@@ -78,7 +78,7 @@ serve(async (req) => {
       ${textContent}
     `;
 
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -96,20 +96,26 @@ serve(async (req) => {
     if (!geminiRes.ok) {
       const errorText = await geminiRes.text();
       console.error("Gemini Error:", errorText);
-      throw new Error(`Gemini API Error: ${errorText}`);
+      // Return 200 with error property so frontend doesn't swallow the HTTP 500 generic client error
+      return new Response(JSON.stringify({ error: `Gemini API Error (Status ${geminiRes.status}):\n${errorText}` }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const geminiData = await geminiRes.json();
     const resultObj = JSON.parse(geminiData.candidates[0].content.parts[0].text);
 
     return new Response(JSON.stringify(resultObj), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (err: any) {
     console.error("Function error:", err.message);
+    // Return 200 so custom error messages are passed through Supabase client
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
