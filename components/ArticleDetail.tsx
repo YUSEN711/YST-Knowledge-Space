@@ -37,9 +37,9 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, onBack, i
     }
   };
 
-  // Permission Check: Author OR Super Admin (Jason)
-  const canDelete = currentUser && (currentUser.name === article.author || currentUser.name === 'Jason');
-  const canEdit = currentUser && currentUser.name === 'Jason';
+  // Permission Check: Author OR Super Admin (Role based now)
+  const canDelete = currentUser && (currentUser.name === article.author || currentUser.role === 'ADMIN');
+  const canEdit = currentUser && currentUser.role === 'ADMIN';
 
   const handleDeleteClick = () => {
     // Remove confirmation for immediate action

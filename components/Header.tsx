@@ -29,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const isSuperAdmin = user?.name === 'Jason';
+  const isSuperAdmin = user?.role === 'ADMIN';
 
   const navItems: { id: TopLevelCategory; label: string }[] = [
     { id: 'LATEST', label: 'Latest' },
