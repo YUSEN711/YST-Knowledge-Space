@@ -30,6 +30,7 @@ export interface Article {
   content?: string;
   keyPoints?: string;
   conclusion?: string;
+  is_deleted?: boolean;
 }
 
 

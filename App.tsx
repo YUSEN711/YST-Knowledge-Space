@@ -11,6 +11,7 @@ import { ArticleDetail } from './components/ArticleDetail';
 import { INITIAL_ARTICLES } from './constants';
 import { Article, Category, ResourceType, User } from './types';
 import { Button } from './components/Button';
+import { supabase } from './lib/supabase';
 
 // Configuration: Map Top Level Categories to Sub Categories
 // Configuration: Map Top Level Categories to Sub Categories
@@ -66,43 +67,10 @@ const normalizeCategory = (cat: string): Category => {
 };
 
 function App() {
-  // Initialize Articles from LocalStorage or fall back to constants
-  const [articles, setArticles] = useState<Article[]>(() => {
-    try {
-      const saved = localStorage.getItem('yst_articles');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Normalize categories for all legacy data
-        return parsed.map((a: Article) => ({
-          ...a,
-          category: normalizeCategory(a.category)
-        }));
-      }
-      return INITIAL_ARTICLES;
-    } catch {
-      return INITIAL_ARTICLES;
-    }
-  });
-
-  // Initialize Deleted Articles from LocalStorage
-  const [deletedArticles, setDeletedArticles] = useState<Article[]>(() => {
-    try {
-      const saved = localStorage.getItem('yst_deleted_articles');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Initialize Users DB from LocalStorage
-  const [usersDb, setUsersDb] = useState<Record<string, User>>(() => {
-    try {
-      const saved = localStorage.getItem('yst_users');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [deletedArticles, setDeletedArticles] = useState<Article[]>([]);
+  const [usersDb, setUsersDb] = useState<Record<string, User>>({});
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -117,68 +85,156 @@ function App() {
   const [currentSubCategory, setCurrentSubCategory] = useState<Category | 'ALL'>('ALL');
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // Load user session (with migration for old shape)
+  // Load user session from localStorage (keep login session local)
   useEffect(() => {
     const savedUser = localStorage.getItem('yst_user');
     if (savedUser) {
-      const u = JSON.parse(savedUser) as Record<string, unknown>;
-      // Migrate legacy field names
-      const migrated: User = {
-        id: (u.id as string) || Date.now().toString(),
-        name: (u.name as string) || (u.username as string) || 'Unknown',
-        username: (u.username as string) || (u.name as string) || 'unknown',
-        avatar: (u.avatar as string) || `https://ui-avatars.com/api/?name=${u.name || u.username}&background=random`,
-        role: ((u.role as string) === 'ADMIN' ? 'ADMIN' : 'USER'),
-        savedArticles: (u.savedArticles as string[]) || (u.savedArticleIds as string[]) || [],
-        readArticleIds: (u.readArticleIds as string[]) || [],
-      };
-      setCurrentUser(migrated);
+      setCurrentUser(JSON.parse(savedUser));
     }
   }, []);
 
-  // Persist Articles
+  // Fetch initial data from Supabase and subscribe to changes
   useEffect(() => {
-    localStorage.setItem('yst_articles', JSON.stringify(articles));
-  }, [articles]);
+    const fetchInitialData = async () => {
+      // Fetch articles
+      const { data: articlesData } = await supabase
+        .from('articles')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  // Persist Deleted Articles
-  useEffect(() => {
-    localStorage.setItem('yst_deleted_articles', JSON.stringify(deletedArticles));
-  }, [deletedArticles]);
-
-  // Persist Users DB
-  useEffect(() => {
-    localStorage.setItem('yst_users', JSON.stringify(usersDb));
-  }, [usersDb]);
-
-  // Sync state across tabs/windows via storage event
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (!e.newValue) return;
-
-      try {
-        switch (e.key) {
-          case 'yst_articles':
-            setArticles(JSON.parse(e.newValue));
-            break;
-          case 'yst_deleted_articles':
-            setDeletedArticles(JSON.parse(e.newValue));
-            break;
-          case 'yst_users':
-            setUsersDb(JSON.parse(e.newValue));
-            break;
-          case 'yst_user':
-            setCurrentUser(JSON.parse(e.newValue));
-            break;
-        }
-      } catch (err) {
-        console.error('Error parsing storage event data:', err);
+      if (articlesData) {
+        const active = articlesData.filter(a => !a.is_deleted).map(mapArticleFromDb);
+        const deleted = articlesData.filter(a => a.is_deleted).map(mapArticleFromDb);
+        if (active.length > 0) setArticles(active);
+        // Fallback to initial articles if db is empty (for demo purposes)
+        else setArticles(INITIAL_ARTICLES);
+        setDeletedArticles(deleted);
+      } else {
+        setArticles(INITIAL_ARTICLES);
       }
+
+      // Fetch users
+      const { data: usersData } = await supabase.from('user_profiles').select('*');
+      if (usersData) {
+        const usersObj: Record<string, User> = {};
+        usersData.forEach(u => {
+          usersObj[u.username] = {
+            id: u.username,
+            name: u.name,
+            username: u.username,
+            avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=random`,
+            role: u.role,
+            savedArticles: u.saved_articles || [],
+            readArticleIds: u.read_articles || []
+          };
+        });
+        setUsersDb(usersObj);
+
+        // Update current user if their db profile changed
+        if (currentUser) {
+          const freshUser = usersObj[currentUser.username];
+          if (freshUser) {
+            setCurrentUser(freshUser);
+            localStorage.setItem('yst_user', JSON.stringify(freshUser));
+          }
+        }
+      }
+
+      setIsInitializing(false);
     };
 
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    fetchInitialData();
+
+    // Set up Realtime Subscriptions
+    const articlesSubscription = supabase
+      .channel('articles-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'articles' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newArt = mapArticleFromDb(payload.new as any);
+          if (newArt.is_deleted) {
+            setDeletedArticles(prev => [newArt, ...prev]);
+          } else {
+            setArticles(prev => [newArt, ...prev]);
+          }
+        } else if (payload.eventType === 'UPDATE') {
+          const updatedArt = mapArticleFromDb(payload.new as any);
+
+          // Handle soft delete toggle
+          if (updatedArt.is_deleted) {
+            setArticles(prev => prev.filter(a => a.id !== updatedArt.id));
+            setDeletedArticles(prev => {
+              if (prev.find(a => a.id === updatedArt.id)) return prev;
+              return [updatedArt, ...prev];
+            });
+          } else {
+            setDeletedArticles(prev => prev.filter(a => a.id !== updatedArt.id));
+            setArticles(prev => {
+              const existing = prev.find(a => a.id === updatedArt.id);
+              if (existing) return prev.map(a => a.id === updatedArt.id ? updatedArt : a);
+              return [updatedArt, ...prev].sort((a, b) => b.id.localeCompare(a.id));
+            });
+          }
+        } else if (payload.eventType === 'DELETE') {
+          setDeletedArticles(prev => prev.filter(a => a.id !== payload.old.id));
+          setArticles(prev => prev.filter(a => a.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    const usersSubscription = supabase
+      .channel('users-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles' }, (payload) => {
+        const u = payload.new as any;
+        if (!u || !u.username) return;
+
+        const updatedUser: User = {
+          id: u.username,
+          name: u.name,
+          username: u.username,
+          avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=random`,
+          role: u.role,
+          savedArticles: u.saved_articles || [],
+          readArticleIds: u.read_articles || []
+        };
+
+        setUsersDb(prev => ({ ...prev, [u.username]: updatedUser }));
+
+        // If the updated user is the current logged-in user, refresh their session state
+        const storedUserJson = localStorage.getItem('yst_user');
+        if (storedUserJson) {
+          const storedUser = JSON.parse(storedUserJson);
+          if (storedUser.username === u.username) {
+            setCurrentUser(updatedUser);
+            localStorage.setItem('yst_user', JSON.stringify(updatedUser));
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(articlesSubscription);
+      supabase.removeChannel(usersSubscription);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Helper map function
+  const mapArticleFromDb = (dbArt: any): Article => ({
+    id: dbArt.id,
+    title: dbArt.title,
+    summary: dbArt.summary,
+    url: dbArt.url,
+    imageUrl: dbArt.image_url || '',
+    category: normalizeCategory(dbArt.category),
+    type: dbArt.type as ResourceType,
+    date: dbArt.date,
+    author: dbArt.author,
+    content: dbArt.content || undefined,
+    keyPoints: dbArt.key_points || undefined,
+    conclusion: dbArt.conclusion || undefined,
+    isFeatured: dbArt.is_featured || false,
+    is_deleted: dbArt.is_deleted || false
+  });
 
   // Sub-category Slider Logic
   const [subCatSliderStyle, setSubCatSliderStyle] = useState({ width: 0, left: 0 });
@@ -289,109 +345,130 @@ function App() {
     markAsRead(article.id);
   };
 
-  const handleAddArticle = (articleData: Omit<Article, 'id' | 'date' | 'author'> & { imageUrl?: string }) => {
-    const newArticle: Article = {
-      ...articleData,
-      imageUrl: articleData.imageUrl || '',
-      id: Date.now().toString(),
-      date: new Date().toISOString().split('T')[0],
+  const handleAddArticle = async (articleData: Omit<Article, 'id' | 'date' | 'author'> & { imageUrl?: string }) => {
+    const newArticle = {
+      title: articleData.title,
+      summary: articleData.summary,
+      url: articleData.url,
+      image_url: articleData.imageUrl || null,
+      category: articleData.category,
+      type: articleData.type,
       author: currentUser?.name || 'Anonymous',
-      isFeatured: false,
+      content: articleData.content || null,
+      key_points: articleData.keyPoints || null,
+      conclusion: articleData.conclusion || null,
+      is_featured: false
     };
-    setArticles(prev => [newArticle, ...prev]);
+
+    // Note: State updates automatically via Realtime subscription!
+    const { error } = await supabase.from('articles').insert([newArticle]);
+    if (error) console.error("Error adding article:", error);
+
     setIsModalOpen(false);
   };
 
-  const handleUpdateArticle = (articleData: Omit<Article, 'id' | 'date' | 'author'> & { imageUrl?: string }) => {
+  const handleUpdateArticle = async (articleData: Omit<Article, 'id' | 'date' | 'author'> & { imageUrl?: string }) => {
     if (!editingArticle) return;
 
-    const updatedArticle: Article = {
-      ...editingArticle,
-      ...articleData,
-      imageUrl: articleData.imageUrl || editingArticle.imageUrl || '',
+    const updatedDbArticle = {
+      title: articleData.title,
+      summary: articleData.summary,
+      url: articleData.url,
+      image_url: articleData.imageUrl || editingArticle.imageUrl || null,
+      category: articleData.category,
+      type: articleData.type,
+      content: articleData.content || null,
+      key_points: articleData.keyPoints || null,
+      conclusion: articleData.conclusion || null
     };
 
-    setArticles(prev => prev.map(a => a.id === updatedArticle.id ? updatedArticle : a));
+    const { error } = await supabase
+      .from('articles')
+      .update(updatedDbArticle)
+      .eq('id', editingArticle.id);
+
+    if (error) console.error("Error updating article:", error);
+
     setIsModalOpen(false);
     setEditingArticle(null);
-    if (selectedArticle?.id === updatedArticle.id) {
-      setSelectedArticle(updatedArticle);
+    if (selectedArticle?.id === editingArticle.id) {
+      // Optimistic update for immediately open modal
+      setSelectedArticle({ ...editingArticle, ...articleData, imageUrl: updatedDbArticle.image_url || '' });
     }
   };
 
-  const handleSoftDeleteArticle = (id: string) => {
-    const articleToDelete = articles.find(a => a.id === id);
-    if (articleToDelete) {
-      setDeletedArticles(prev => [articleToDelete, ...prev]);
-      setArticles(prev => prev.filter(a => a.id !== id));
-      if (selectedArticle?.id === id) setSelectedArticle(null);
-    }
+  const handleSoftDeleteArticle = async (id: string) => {
+    const { error } = await supabase.from('articles').update({ is_deleted: true }).eq('id', id);
+    if (error) console.error("Error soft deleting:", error);
+    if (selectedArticle?.id === id) setSelectedArticle(null);
   };
 
-  const handleRestoreArticle = (id: string) => {
-    const articleToRestore = deletedArticles.find(a => a.id === id);
-    if (articleToRestore) {
-      setArticles(prev => [articleToRestore, ...prev]);
-      setDeletedArticles(prev => prev.filter(a => a.id !== id));
-    }
+  const handleRestoreArticle = async (id: string) => {
+    const { error } = await supabase.from('articles').update({ is_deleted: false }).eq('id', id);
+    if (error) console.error("Error restoring:", error);
   };
 
-  const handlePermanentDelete = (id: string) => {
-    setDeletedArticles(prev => prev.filter(a => a.id !== id));
+  const handlePermanentDelete = async (id: string) => {
+    const { error } = await supabase.from('articles').delete().eq('id', id);
+    if (error) console.error("Error permanent deleting:", error);
   };
 
-  const handleEmptyTrash = () => {
+  const handleEmptyTrash = async () => {
     if (window.confirm('確定要清空垃圾桶嗎？此動作無法復原。')) {
-      setDeletedArticles([]);
+      // Delete all where is_deleted = true
+      const { error } = await supabase.from('articles').delete().eq('is_deleted', true);
+      if (error) console.error("Error emptying trash:", error);
     }
   };
 
-  const toggleSaveArticle = (id: string) => {
+  const toggleSaveArticle = async (id: string) => {
     if (!currentUser) {
       setIsLoginModalOpen(true);
       return;
     }
 
-    setUsersDb(prev => {
-      const user = prev[currentUser.username] || currentUser;
-      const saved = user.savedArticles || [];
-      const newSaved = saved.includes(id)
-        ? saved.filter(sid => sid !== id)
-        : [...saved, id];
+    const saved = currentUser.savedArticles || [];
+    const newSaved = saved.includes(id)
+      ? saved.filter(sid => sid !== id)
+      : [...saved, id];
 
-      const updatedUser = { ...user, savedArticles: newSaved };
-      setCurrentUser(updatedUser);
-      localStorage.setItem('yst_user', JSON.stringify(updatedUser));
-      return { ...prev, [currentUser.username]: updatedUser };
-    });
+    // Optimistic UI update
+    const updatedUser = { ...currentUser, savedArticles: newSaved };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('yst_user', JSON.stringify(updatedUser));
+
+    // DB Update
+    const { error } = await supabase.from('user_profiles').update({ saved_articles: newSaved }).eq('username', currentUser.username);
+    if (error) console.error("Error updating saved articles:", error);
   };
 
   const isArticleSaved = (id: string) => {
     return currentUser?.savedArticles?.includes(id) || false;
   };
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
     if (!currentUser) return;
 
-    setUsersDb(prev => {
-      const user = prev[currentUser.username] || currentUser;
-      const read = user.readArticleIds || [];
-      if (read.includes(id)) return prev;
+    const read = currentUser.readArticleIds || [];
+    if (read.includes(id)) return;
 
-      const newRead = [...read, id];
-      const updatedUser = { ...user, readArticleIds: newRead };
+    const newRead = [...read, id];
 
-      setCurrentUser(updatedUser);
-      localStorage.setItem('yst_user', JSON.stringify(updatedUser));
-      return { ...prev, [currentUser.username]: updatedUser };
-    });
+    // Optimistic UI update
+    const updatedUser = { ...currentUser, readArticleIds: newRead };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('yst_user', JSON.stringify(updatedUser));
+
+    // DB Update
+    const { error } = await supabase.from('user_profiles').update({ read_articles: newRead }).eq('username', currentUser.username);
+    if (error) console.error("Error marking as read:", error);
   };
 
   const isArticleRead = (id: string) => {
     return currentUser?.readArticleIds?.includes(id) || false;
   };
 
-  const handleLogin = (username: string, pass?: string) => {
+  const handleLogin = async (username: string, pass?: string) => {
     // Check password early for Jason/Admin
     const adminPassword = (import.meta as any).env.VITE_ADMIN_PASSWORD;
     if (username.toLowerCase() === 'jason' && pass !== adminPassword) {
@@ -399,27 +476,30 @@ function App() {
       return false; // Login failed
     }
 
-    // Simple mock login
     let user = usersDb[username];
     if (!user) {
-      // Register if not exists
-      user = {
-        id: Date.now().toString(),
-        name: username, // For simplicity use username as name
+      // Register if not exists in DB
+      const newProfile = {
         username: username,
+        name: username,
         avatar: `https://ui-avatars.com/api/?name=${username}&background=random`,
         role: username.toLowerCase() === 'jason' ? 'ADMIN' : 'USER',
+        saved_articles: [],
+        read_articles: []
+      };
+
+      const { error } = await supabase.from('user_profiles').insert([newProfile]);
+      if (error) console.error("Error creating user profile:", error);
+
+      user = {
+        id: username,
+        name: username,
+        username: username,
+        avatar: newProfile.avatar,
+        role: newProfile.role as 'ADMIN' | 'USER',
         savedArticles: [],
         readArticleIds: []
       };
-      // For new users, just save them
-      setUsersDb(prev => ({ ...prev, [username]: user }));
-    } else {
-      // Ensure readArticleIds exists for existing users (migration)
-      if (!user.readArticleIds) {
-        user = { ...user, readArticleIds: [] };
-        setUsersDb(prev => ({ ...prev, [username]: user }));
-      }
     }
 
     setCurrentUser(user);
