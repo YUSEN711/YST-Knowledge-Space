@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Link as LinkIcon, Type, FileText, Youtube, BookOpen, Loader2, RefreshCw, Key, ArrowLeft } from 'lucide-react';
+import { X, Link as LinkIcon, Type, FileText, Youtube, BookOpen, Loader2, RefreshCw, Key, ArrowLeft, Sparkles } from 'lucide-react';
 import { Button } from './Button';
 import { Article, Category, ResourceType, User } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface SubmitModalProps {
   isOpen: boolean;
@@ -275,10 +276,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
   const [imageUrl, setImageUrl] = useState('');
   const [isFetchingImage, setIsFetchingImage] = useState(false);
 
-  // YouTube specific
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-  const [youtubeApiKey, setYoutubeApiKey] = useState('');
-  const [isRetryingWithKey, setIsRetryingWithKey] = useState(false);
+  // Removed local API Key state (now handled securely by backend Edge Function)
 
   // Auto-fetch logic
   useEffect(() => {
@@ -337,20 +335,9 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
           // Handle Description / API Key Logic
           if (fetchedDesc) {
             if (!content) setContent(fetchedDesc);
-            setShowApiKeyInput(false);
-          } else {
-            // If description is missing, we need API key ONLY for description
-            // But we don't want to block the title.
-            // We show popup only if we really need description and user hasn't skipped it.
-            // Logic: If title found but no description -> Show popup to offer better data, 
-            // but user can see title is already there.
-            setShowApiKeyInput(true);
           }
-
         } catch (error) {
           console.error("YouTube fetch timed out or failed:", error);
-          // Even on timeout, IF we got title somehow (unlikely if race failed) or just show popup
-          setShowApiKeyInput(true);
         }
 
         setIsFetchingTitle(false);
@@ -414,24 +401,31 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
   }, [title, resourceType]);
 
 
-  // Handler for Manual Retry with API Key
-  const handleRetryWithApiKey = async () => {
-    if (!youtubeApiKey) return;
-    setIsRetryingWithKey(true);
+  // Handler for AI Auto Summarize via Edge Function
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
-    const { title: ytTitle, description: ytDesc, thumbnailUrl } = await fetchYouTubeData(url, youtubeApiKey);
-
-    if (ytTitle) setTitle(ytTitle);
-    if (ytDesc) {
-      setContent(ytDesc);
-      setShowApiKeyInput(false); // Success, hide popup
-    } else {
-      alert("無法透過 API 抓取內容，請確認 Key 是否正確或手動輸入。");
+  const handleAutoSummarize = async () => {
+    if (!url) {
+      alert("請先輸入有效的連結！");
+      return;
     }
+    setIsSummarizing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-summary', {
+        body: { url, type: resourceType }
+      });
 
-    if (thumbnailUrl) setImageUrl(thumbnailUrl);
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
-    setIsRetryingWithKey(false);
+      if (data.content) setContent(data.content);
+      if (data.keyPoints) setKeyPoints(data.keyPoints);
+    } catch (err: any) {
+      console.error("Auto summarize failed:", err);
+      alert("自動總結失敗：" + err.message);
+    } finally {
+      setIsSummarizing(false);
+    }
   };
 
 
@@ -455,8 +449,6 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
         setResourceType('ARTICLE');
         setContent('');
         setKeyPoints('');
-        setShowApiKeyInput(false);
-        setYoutubeApiKey('');
       }
     }
   }, [isOpen, initialData]);
@@ -510,60 +502,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
       />
       <div className="relative bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-[fadeIn_0.3s_ease-out] max-h-[90vh] flex flex-col">
 
-        {/* API Key Modal Overlay */}
-        {showApiKeyInput && (
-          <div className="absolute inset-0 z-[110] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-8 animate-[fadeIn_0.2s_ease-out]">
-            {/* Back Button */}
-            <button
-              onClick={() => setShowApiKeyInput(false)}
-              className="absolute top-4 left-4 p-2 text-gray-400 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <ArrowLeft size={24} />
-            </button>
-
-            <div className="w-full max-w-sm space-y-4 text-center">
-              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Youtube size={24} />
-              </div>
-              <h4 className="text-xl font-bold text-gray-900">無法自動抓取影片說明</h4>
-              <p className="text-sm text-gray-500">
-                由於 YouTube 的限制，我們無法直接抓取詳細說明。您可以輸入個人的 YouTube Data API Key 來嘗試獲取完整資訊。
-              </p>
-
-              <div className="text-left space-y-1.5 pt-2">
-                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">YouTube Data API Key</label>
-                <input
-                  type="text"
-                  value={youtubeApiKey}
-                  onChange={(e) => setYoutubeApiKey(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none text-sm"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowApiKeyInput(false)}
-                  className="flex-1"
-                >
-                  略過，手動輸入
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={handleRetryWithApiKey}
-                  isLoading={isRetryingWithKey}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white border-transparent"
-                >
-                  重試抓取
-                </Button>
-              </div>
-              <p className="text-xs text-gray-400 mt-4">
-                您的 Key 僅會用於此次抓取，不會被儲存。
-              </p>
-            </div>
-          </div>
-        )}
+        {/* API Key Modal Overlay Removed as it is now handled securely in the backend edge function */}
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
@@ -680,14 +619,19 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({ isOpen, onClose, onSub
           <div className="space-y-1.5 relative">
             <div className="flex justify-between items-center">
               <label className="text-sm font-medium text-gray-700 block">文章內容</label>
-              {resourceType === 'YOUTUBE' && (
+              {url && (
                 <button
                   type="button"
-                  onClick={() => setShowApiKeyInput(true)}
-                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium transition-colors"
+                  onClick={handleAutoSummarize}
+                  disabled={isSummarizing}
+                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium transition-colors disabled:opacity-50"
                 >
-                  <Key size={12} />
-                  輸入 API Key 重新抓取
+                  {isSummarizing ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={12} />
+                  )}
+                  {isSummarizing ? "正在分析..." : "AI 自動擷取摘要"}
                 </button>
               )}
             </div>
