@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Bookmark, Menu, X, LogIn, Trash2, LogOut } from 'lucide-react';
+import { Plus, Bookmark, Menu, X, LogIn, Trash2, LogOut, Settings } from 'lucide-react';
 import { Button } from './Button';
 import { User } from '../types';
 
@@ -10,6 +10,7 @@ interface HeaderProps {
   onOpenSaved: () => void;
   onOpenLogin: () => void;
   onOpenTrash: () => void;
+  onOpenSettings: () => void;
 
   currentTopLevel: TopLevelCategory;
   onTopLevelChange: (level: TopLevelCategory) => void;
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSaved,
   onOpenLogin,
   onOpenTrash,
+  onOpenSettings,
 
   currentTopLevel,
   onTopLevelChange,
@@ -132,6 +134,17 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="hidden lg:inline text-sm">{user.name}</span>
                 </Button>
 
+                {/* Settings Button (Desktop/Tablet) */}
+                <Button
+                  variant="ghost"
+                  size="md"
+                  onClick={onOpenSettings}
+                  className="hidden sm:flex items-center gap-2 !px-2 sm:!px-3 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                  title="設定"
+                >
+                  <Settings size={20} className="md:w-[20px] md:h-[20px]" />
+                </Button>
+
                 {/* Logout Button (Desktop/Tablet) */}
                 <Button
                   variant="ghost"
@@ -211,6 +224,15 @@ export const Header: React.FC<HeaderProps> = ({
                     最近刪除
                   </button>
                 )}
+
+                {/* Settings Link (Mobile) */}
+                <button
+                  onClick={() => { onOpenSettings(); setIsMobileMenuOpen(false); }}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 text-gray-700 font-medium flex items-center gap-2"
+                >
+                  <Settings size={18} />
+                  帳號設定
+                </button>
 
 
               </div>

@@ -620,6 +620,7 @@ function App() {
         onOpenSaved={() => setIsSavedModalOpen(true)}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onOpenTrash={() => setIsTrashModalOpen(true)}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
 
         currentTopLevel={currentTopLevel}
         onTopLevelChange={handleTopLevelChange}
